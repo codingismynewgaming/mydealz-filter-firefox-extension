@@ -1,10 +1,12 @@
 # myDealz Filter Extension
 
+![UI Screenshot](ui-screenshot.png)
+
 ## Deutsche Anleitung
 
 Na, keine Lust ständig Apple Deals in deinem Feed zu haben? Oder Auto-Deals? Keine Sorge! Jetzt kein Problem mehr. Einfach diese Extension installieren, bestimmte Suchbegriffe eingeben und die Extension blendet jeden Deal einfach aus, der einen der Suchbegriffe im Titel hat. Its so easy! Warum mydealz das wohl noch nicht geschafft hat ..
 
-Eine Firefox-Erweiterung, die es Benutzern ermöglicht, Einträge auf mydealz.de nach Schlüsselwörtern im Titel zu filtern. Einträge mit bestimmten Schlüsselwörtern werden ausgeblendet und eine grüne Kennzeichnung zeigt an, wie viele Einträge gefiltert wurden.
+Eine Firefox-Erweiterung, die es Benutzern ermöglicht, Einträge auf mydealz.de nach Schlüsselwörtern im Titel zu filtern. Einträge mit bestimmten Schlüsselwörtern werden ausgeblendet und eine grüne Kennzeichlung zeigt an, wie viele Einträge gefiltert wurden.
 
 ### Funktionen
 
@@ -44,7 +46,7 @@ Eine Firefox-Erweiterung, die es Benutzern ermöglicht, Einträge auf mydealz.de
 
 ## English Instructions
 
-Tired of constantly seeing Apple deals in your feed? Or car deals? No worries! Now it's no longer a problem. Simply install this extension, enter specific search terms, and the extension will hide any deal that has one of the search terms in the title. It's so easy! Wonder why mydealz hasn't figured this out yet ..
+Tired of constantly seeing Apple deals in your feed? Or car deals? No worries! Now it's no longer a problem. Simply install this extension, enter specific search terms, and the extension will hide any deal that has one of the search terms in the title. It's so easy! Wonder why mydealz haven't figured this out yet ..
 
 A Firefox extension that allows users to filter postings on mydealz.de by keywords in the title. Postings containing specified keywords are hidden from view, and a green badge shows how many postings have been filtered out.
 
