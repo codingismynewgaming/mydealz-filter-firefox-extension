@@ -1,6 +1,6 @@
 # myDealz Filter Extension
 
-![UI Screenshot](ui-screenshot.png)
+![UI Screenshot](screenshot-ui.png)
 
 ## Deutsche Anleitung
 
