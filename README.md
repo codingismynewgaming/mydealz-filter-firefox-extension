@@ -2,6 +2,8 @@
 
 ## Deutsche Anleitung
 
+Na, keine Lust ständig Apple Deals in deinem Feed zu haben? Oder Auto-Deals? Keine Sorge! Jetzt kein Problem mehr. Einfach diese Extension installieren, bestimmte Suchbegriffe eingeben und die Extension blendet jeden Deal einfach aus, der einen der Suchbegriffe im Titel hat. Its so easy! Warum mydealz das wohl noch nicht geschafft hat ..
+
 Eine Firefox-Erweiterung, die es Benutzern ermöglicht, Einträge auf mydealz.de nach Schlüsselwörtern im Titel zu filtern. Einträge mit bestimmten Schlüsselwörtern werden ausgeblendet und eine grüne Kennzeichnung zeigt an, wie viele Einträge gefiltert wurden.
 
 ### Funktionen
@@ -22,15 +24,10 @@ Eine Firefox-Erweiterung, die es Benutzern ermöglicht, Einträge auf mydealz.de
 #### Für Entwicklung
 
 1. Klonen oder Herunterladen dieses Repositories
-2. Firefox öffnen und zu `about:debugging` navigieren
+2. Firefox öffnen und zu `about:debugging`
 3. Auf "Dieser Firefox" klicken
 4. Auf "Temporäres Add-on laden" klicken
 5. Die Datei `manifest.json` aus diesem Verzeichnis auswählen
-
-#### Für Veröffentlichung
-
-1. Die Erweiterung als ZIP-Datei packen
-2. Zur Überprüfung bei [Mozilla Add-ons](https://addons.mozilla.org) einreichen
 
 **Zukünftige Verfügbarkeit:** Ich plane, diese Erweiterung so bald wie möglich von Mozilla verifizieren zu lassen, damit sie auch im Online-Verzeichnis für Add-ons verfügbar ist.
 
@@ -46,6 +43,8 @@ Eine Firefox-Erweiterung, die es Benutzern ermöglicht, Einträge auf mydealz.de
 ---
 
 ## English Instructions
+
+Tired of constantly seeing Apple deals in your feed? Or car deals? No worries! Now it's no longer a problem. Simply install this extension, enter specific search terms, and the extension will hide any deal that has one of the search terms in the title. It's so easy! Wonder why mydealz hasn't figured this out yet ..
 
 A Firefox extension that allows users to filter postings on mydealz.de by keywords in the title. Postings containing specified keywords are hidden from view, and a green badge shows how many postings have been filtered out.
 
@@ -71,11 +70,6 @@ A Firefox extension that allows users to filter postings on mydealz.de by keywor
 3. Click "This Firefox"
 4. Click "Load Temporary Add-on"
 5. Select the `manifest.json` file from this directory
-
-#### For Release
-
-1. Package the extension as a ZIP file
-2. Submit to [Mozilla Add-ons](https://addons.mozilla.org) for review
 
 **Future Availability:** I plan to get this extension verified by Mozilla as soon as possible, and then it also should be in the addons directory online.
 
