@@ -1,8 +1,55 @@
 # myDealz Filter Extension
 
+## Deutsche Anleitung
+
+Eine Firefox-Erweiterung, die es Benutzern ermöglicht, Einträge auf mydealz.de nach Schlüsselwörtern im Titel zu filtern. Einträge mit bestimmten Schlüsselwörtern werden ausgeblendet und eine grüne Kennzeichnung zeigt an, wie viele Einträge gefiltert wurden.
+
+### Funktionen
+
+- Filtern von Deal-Einträgen nach Schlüsselwörtern im Titel
+- Mit Tabs versehenes Popup-Fenster mit Registerkarten für Einstellungen und ausgeblendete Beiträge
+- Grüne Zähler-Anzeige mit der Anzahl der ausgeblendeten Einträge
+- Echtzeit-Filterung während neuer Inhalte geladen werden
+- Anzeige der ausgeblendeten Angebote mit anklickbaren Links im Tab "Ausgeblendete Beiträge"
+- Anzeige, welcher Filterbegriff dazu führte, dass ein Angebot ausgeblendet wurde
+- Berücksichtigung der dunklen/hellen Modus-Einstellung des Benutzers
+- Zurücksetzen des Zählers beim Neuladen der Seite
+- Kompatibel mit Firefox (Manifest V3)
+- Enthält Spenden-Buttons für Buy Me a Coffee und PayPal
+
+### Installation
+
+#### Für Entwicklung
+
+1. Klonen oder Herunterladen dieses Repositories
+2. Firefox öffnen und zu `about:debugging` navigieren
+3. Auf "Dieser Firefox" klicken
+4. Auf "Temporäres Add-on laden" klicken
+5. Die Datei `manifest.json` aus diesem Verzeichnis auswählen
+
+#### Für Veröffentlichung
+
+1. Die Erweiterung als ZIP-Datei packen
+2. Zur Überprüfung bei [Mozilla Add-ons](https://addons.mozilla.org) einreichen
+
+**Zukünftige Verfügbarkeit:** Ich plane, diese Erweiterung so bald wie möglich von Mozilla verifizieren zu lassen, damit sie auch im Online-Verzeichnis für Add-ons verfügbar ist.
+
+### Verwendung
+
+1. Das Popup-Fenster der Erweiterung durch Klicken auf das Symbol in der Symbolleiste aufrufen
+2. Schlüsselwörter eingeben, die gefiltert werden sollen, durch Kommas getrennt (z.B. "iPhone, Apple, Samsung")
+3. Auf "Filter speichern" klicken
+4. Zu mydealz.de navigieren - Einträge mit diesen Schlüsselwörtern im Titel werden ausgeblendet
+5. Die grüne Kennzeichnung am Erweiterungssymbol zeigt an, wie viele Einträge ausgeblendet wurden
+6. Erneut auf das Erweiterungssymbol klicken, um eine Liste der ausgeblendeten Angebote mit anklickbaren Links und dem Filterbegriff anzuzeigen, der zum Ausblenden führte
+
+---
+
+## English Instructions
+
 A Firefox extension that allows users to filter postings on mydealz.de by keywords in the title. Postings containing specified keywords are hidden from view, and a green badge shows how many postings have been filtered out.
 
-## Features
+### Features
 
 - Filter deal postings by keywords in the title
 - Tabbed popup interface with Settings and Hidden Posts tabs
@@ -15,22 +62,24 @@ A Firefox extension that allows users to filter postings on mydealz.de by keywor
 - Compatible with Firefox (Manifest V3)
 - Includes donate buttons for Buy Me a Coffee and PayPal
 
-## Installation
+### Installation
 
-### For Development
+#### For Development
 
 1. Clone or download this repository
 2. Open Firefox and navigate to `about:debugging`
-3. Click "This Firefox" 
+3. Click "This Firefox"
 4. Click "Load Temporary Add-on"
 5. Select the `manifest.json` file from this directory
 
-### For Release
+#### For Release
 
 1. Package the extension as a ZIP file
 2. Submit to [Mozilla Add-ons](https://addons.mozilla.org) for review
 
-## Usage
+**Future Availability:** I plan to get this extension verified by Mozilla as soon as possible, and then it also should be in the addons directory online.
+
+### Usage
 
 1. Visit the extension's popup by clicking its icon in the toolbar
 2. Enter keywords you want to filter, separated by commas (e.g., "iPhone, Apple, Samsung")
