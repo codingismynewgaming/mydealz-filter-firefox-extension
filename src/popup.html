@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>myDealz Filter</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>myDealz Filter</h1>
+        <p class="subtitle">Hide postings by keywords</p>
+      </div>
+
+      <!-- Tab Navigation -->
+      <div class="tab-nav">
+        <button id="settingsTabBtn" class="tab-btn active">Settings</button>
+        <button id="hiddenPostsTabBtn" class="tab-btn">Hidden Posts (<span id="hiddenCount">0</span>)</button>
+      </div>
+
+      <!-- Settings Tab Content -->
+      <div id="settingsTab" class="tab-content active">
+        <div class="form-group">
+          <label for="filterTerms">Filter Terms</label>
+          <textarea
+            id="filterTerms"
+            placeholder="Enter keywords separated by commas&#10;Example: iPhone, Apple, Samsung"
+            rows="5"
+          ></textarea>
+          <p class="hint">
+            Enter keywords separated by commas. Postings with these terms in the
+            title will be hidden.
+          </p>
+        </div>
+
+        <div class="button-group">
+          <button id="saveBtn" class="btn btn-primary">Save Filters</button>
+          <button id="clearBtn" class="btn btn-secondary">Clear All</button>
+        </div>
+
+        <div id="status" class="status"></div>
+
+        <div class="info-section">
+          <h3>How to use:</h3>
+          <ol>
+            <li>Enter keywords you want to filter separated by commas</li>
+            <li>Click "Save Filters"</li>
+            <li>Visit mydealz.de - postings with those keywords will be hidden</li>
+            <li>The icon shows how many postings are hidden</li>
+          </ol>
+        </div>
+
+        <!-- Donate section -->
+        <div class="donate-section">
+          <p class="donate-text">Enjoying this extension? Instead of sending me your Bitcoins, just buy me a coffee or send a donation via PayPal.</p>
+          <div class="donate-buttons">
+            <a href="https://buymeacoffee.com/codingiymynewgaming" target="_blank" rel="noopener noreferrer" class="btn btn-donate btn-coffee">Buy me a coffee</a>
+            <a href="https://www.paypal.com/donate/?hosted_button_id=ZXHJFTUW9NQK8" target="_blank" rel="noopener noreferrer" class="btn btn-donate btn-paypal">Donate via PayPal</a>
+            <a href="https://github.com/codingismynewgaming" target="_blank" rel="noopener noreferrer" class="btn btn-donate btn-github">GitHub</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Hidden Posts Tab Content -->
+      <div id="hiddenPostsTab" class="tab-content">
+        <div id="hiddenDealsList" class="deals-list">
+          <p id="noHiddenDeals">No deals have been hidden on this page.</p>
+          <!-- Hidden deals will be populated here -->
+        </div>
+      </div>
+    </div>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

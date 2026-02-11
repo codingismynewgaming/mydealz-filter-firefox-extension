@@ -1,0 +1,42 @@
+{
+  "manifest_version": 3,
+  "name": "myDealz Filter",
+  "version": "1.0.0",
+  "description": "Filter myDealz postings by keywords in titles. Hide unwanted deals and show the number of hidden postings.",
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "*://www.mydealz.de/*"
+  ],
+  "action": {
+    "default_popup": "src/popup.html",
+    "default_title": "myDealz Filter",
+    "default_width": 450,
+    "default_height": 650,
+    "default_icons": {
+      "48": "icons/icon-48.png",
+      "96": "icons/icon-96.png"
+    }
+  },
+  "icons": {
+    "48": "icons/icon-48.png",
+    "96": "icons/icon-96.png"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://www.mydealz.de/*"],
+      "js": ["src/content-script.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "background": {
+    "service_worker": "src/background.js",
+    "scripts": ["src/background.js"]
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "mydealz-filter@firefox.local"
+    }
+  }
+}
