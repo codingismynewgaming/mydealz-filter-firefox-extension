@@ -1,6 +1,6 @@
 # AMO Submission Notes
 
-Version: 1.0.0
+Version: 1.0.1
 
 ## Upload file
 
@@ -10,4 +10,4 @@ npm run build:amo
 
 Use this file for AMO:
 
-`web-ext-artifacts/mydealz_filter-1.0.0.zip`
+`web-ext-artifacts/mydealz_filter-1.0.1.zip`

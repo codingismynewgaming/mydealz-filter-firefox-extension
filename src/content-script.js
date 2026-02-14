@@ -12,6 +12,9 @@ const hiddenDealKeys = new Set(); // Prevent duplicate hidden deals within one p
 
 // Store the total count of hidden deals across sessions
 let totalHiddenDealCount = 0;
+let totalHiddenDealKeys = new Set();
+let persistTotalsTimer = null;
+const TOTALS_PERSIST_DEBOUNCE_MS = 1500;
 
 /**
  * Debug logging helper
@@ -20,14 +23,124 @@ function log(...args) {
   if (DEBUG) console.log("[myDealz Filter]", ...args);
 }
 
+function normalizeForMatch(text) {
+  return (text || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function escapeRegExp(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function parseTermEntries(rawTerms) {
+  return (rawTerms || "")
+    .split(",")
+    .map((term) => term.trim())
+    .filter((term) => term.length > 0)
+    .map((raw) => ({
+      raw,
+      normalized: normalizeForMatch(raw),
+    }))
+    .filter((term) => term.normalized.length > 0);
+}
+
+function containsWholeTerm(normalizedTitle, normalizedTerm) {
+  if (!normalizedTitle || !normalizedTerm) return false;
+
+  const escapedTerm = escapeRegExp(normalizedTerm).replace(/\s+/g, "\\s+");
+  const regex = new RegExp(
+    `(^|[^\\p{L}\\p{N}])${escapedTerm}([^\\p{L}\\p{N}]|$)`,
+    "u"
+  );
+  return regex.test(normalizedTitle);
+}
+
+function findMatchingFilterTerm(normalizedTitle, filterTerms) {
+  for (const term of filterTerms) {
+    if (containsWholeTerm(normalizedTitle, term.normalized)) {
+      return term;
+    }
+  }
+  return null;
+}
+
 /**
- * Load the total hidden deal count from storage
+ * Normalize a deal URL into a stable key component.
  */
-async function loadTotalHiddenDealCount() {
+function normalizeDealUrl(url) {
+  if (!url) return "";
+  try {
+    const parsed = new URL(url);
+    return `${parsed.origin}${parsed.pathname}`.toLowerCase();
+  } catch {
+    return url.toLowerCase().split("?")[0].split("#")[0];
+  }
+}
+
+function normalizeDealTitle(title) {
+  return (title || "").toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function buildDealUniqueKey(title, url) {
+  const normalizedUrl = normalizeDealUrl(url);
+  if (normalizedUrl) return `url:${normalizedUrl}`;
+  return `title:${normalizeDealTitle(title)}`;
+}
+
+function schedulePersistTotals() {
+  clearTimeout(persistTotalsTimer);
+  persistTotalsTimer = setTimeout(() => {
+    chrome.storage.local.set(
+      {
+        totalHiddenDealCount,
+        totalHiddenDealKeys: Array.from(totalHiddenDealKeys),
+      },
+      () => {
+        if (chrome.runtime.lastError) {
+          log("Error saving total hidden deal state:", chrome.runtime.lastError);
+        }
+      }
+    );
+  }, TOTALS_PERSIST_DEBOUNCE_MS);
+}
+
+/**
+ * Load unique hidden deal state from local storage.
+ */
+async function loadTotalHiddenDealState() {
   return new Promise((resolve) => {
-    chrome.storage.sync.get(["totalHiddenDealCount"], (result) => {
-      totalHiddenDealCount = result.totalHiddenDealCount || 0;
-      log("Loaded total hidden deal count from storage:", totalHiddenDealCount);
+    chrome.storage.local.get(["totalHiddenDealCount", "totalHiddenDealKeys"], (result) => {
+      const savedKeys = Array.isArray(result.totalHiddenDealKeys) ? result.totalHiddenDealKeys : [];
+      totalHiddenDealKeys = new Set(savedKeys);
+
+      if (!Number.isInteger(result.totalHiddenDealCount) && savedKeys.length === 0) {
+        chrome.storage.sync.get(["totalHiddenDealCount"], (syncResult) => {
+          totalHiddenDealCount = Number.isInteger(syncResult.totalHiddenDealCount)
+            ? syncResult.totalHiddenDealCount
+            : 0;
+
+          if (totalHiddenDealCount > 0) {
+            schedulePersistTotals();
+          }
+
+          log("Loaded total hidden deal count from sync fallback:", totalHiddenDealCount);
+          resolve(totalHiddenDealCount);
+        });
+        return;
+      }
+
+      const savedCount = Number.isInteger(result.totalHiddenDealCount)
+        ? result.totalHiddenDealCount
+        : totalHiddenDealKeys.size;
+      totalHiddenDealCount = Math.max(savedCount, totalHiddenDealKeys.size);
+
+      log("Loaded total hidden deal state from storage:", {
+        totalHiddenDealCount,
+        uniqueKeys: totalHiddenDealKeys.size,
+      });
       resolve(totalHiddenDealCount);
     });
   });
@@ -50,19 +163,10 @@ async function getFilterTerms() {
 
         const filterTerms = result.filterTerms || "";
         const exceptionTerms = result.exceptionTerms || "";
-        
-        // Split by comma and trim whitespace for filter terms
-        const filterTermsList = filterTerms
-          .split(",")
-          .map((term) => term.trim().toLowerCase())
-          .filter((term) => term.length > 0);
-          
-        // Split by comma and trim whitespace for exception terms
-        const exceptionTermsList = exceptionTerms
-          .split(",")
-          .map((term) => term.trim().toLowerCase())
-          .filter((term) => term.length > 0);
-          
+
+        const filterTermsList = parseTermEntries(filterTerms);
+        const exceptionTermsList = parseTermEntries(exceptionTerms);
+
         resolve({ filterTerms: filterTermsList, exceptionTerms: exceptionTermsList });
       });
     } catch (error) {
@@ -79,27 +183,20 @@ async function getFilterTerms() {
 function matchesFilter(title, filterTerms, exceptionTerms) {
   if (!title || filterTerms.length === 0) return false;
 
-  // Convert title to lowercase once for all comparisons
-  const lowerTitle = title.toLowerCase();
+  // Normalize title once for exact matching (diacritics-insensitive).
+  const normalizedTitle = normalizeForMatch(title);
 
   // First check if the title contains any exception terms
   if (exceptionTerms && exceptionTerms.length > 0) {
     for (const exceptionTerm of exceptionTerms) {
-      if (lowerTitle.includes(exceptionTerm.toLowerCase())) {
+      if (containsWholeTerm(normalizedTitle, exceptionTerm.normalized)) {
         // If it contains an exception term, don't filter it even if it contains filter terms
         return false;
       }
     }
   }
 
-  // Use a more efficient loop with early termination to check filter terms
-  for (const term of filterTerms) {
-    if (lowerTitle.includes(term)) {
-      return true; // Early return on first match
-    }
-  }
-
-  return false;
+  return !!findMatchingFilterTerm(normalizedTitle, filterTerms);
 }
 
 /**
@@ -325,19 +422,24 @@ async function filterPostings(options = {}) {
   // Batch DOM operations for better performance
   const elementsToHide = [];
   const elementsToShow = [];
-  let newHiddenCount = 0;
+  let newlyDiscoveredUniqueDeals = 0;
 
   postings.forEach(({ element, title }) => {
     if (matchesFilter(title, filterTerms, exceptionTerms)) {
-      // Find which term matched (among filter terms, not exception terms)
-      const matchingTerm = filterTerms.find(term => title.toLowerCase().includes(term));
+      const normalizedTitle = normalizeForMatch(title);
+      const matchingTermEntry = findMatchingFilterTerm(normalizedTitle, filterTerms);
+      const matchingTerm = matchingTermEntry ? matchingTermEntry.raw : "";
       const dealUrl = element.querySelector('a[href*="/deals/"]')?.href || "";
-      const dealKey = `${dealUrl || title.toLowerCase()}|${matchingTerm}`;
+      const dealKey = buildDealUniqueKey(title, dealUrl);
 
       if (!hiddenDealKeys.has(dealKey)) {
         hiddenDealKeys.add(dealKey);
         hiddenDeals.push({ title, url: dealUrl, matchingTerm });
-        newHiddenCount++;
+      }
+
+      if (!totalHiddenDealKeys.has(dealKey)) {
+        totalHiddenDealKeys.add(dealKey);
+        newlyDiscoveredUniqueDeals++;
       }
 
       if (element.style.display !== "none") {
@@ -367,7 +469,7 @@ async function filterPostings(options = {}) {
 
   // Keep a cumulative per-page session count.
   hiddenCount = hiddenDeals.length;
-  updateBadge(hiddenCount, newHiddenCount);
+  updateBadge(hiddenCount, newlyDiscoveredUniqueDeals);
 }
 
 /**
@@ -375,24 +477,11 @@ async function filterPostings(options = {}) {
  */
 async function updateBadge(currentCount, newHiddenCount = 0) {
   try {
-    // Update the total hidden deal count by the number of newly hidden deals
+    // Update the total hidden deal count by newly discovered unique deals.
     if (newHiddenCount > 0) {
       totalHiddenDealCount += newHiddenCount;
+      schedulePersistTotals();
     }
-    
-    // Save both counts to storage in a single operation
-    const storageUpdate = {
-      hiddenDealCount: currentCount,
-      totalHiddenDealCount: totalHiddenDealCount
-    };
-    
-    chrome.storage.sync.set(storageUpdate, () => {
-      if (chrome.runtime.lastError) {
-        log("Error saving hidden deal counts to storage:", chrome.runtime.lastError);
-      } else {
-        log("Saved hidden deal counts to storage - current:", currentCount, "total:", totalHiddenDealCount);
-      }
-    });
 
     chrome.runtime.sendMessage(
       {
@@ -498,8 +587,8 @@ window.addEventListener('beforeunload', () => {
 
 // Initialize and start the filter
 async function init() {
-  // Load the total hidden deal count from storage
-  await loadTotalHiddenDealCount();
+  // Load the total hidden deal state from storage.
+  await loadTotalHiddenDealState();
   
   // Wait a moment for the page to fully load
   if (document.readyState === "loading") {

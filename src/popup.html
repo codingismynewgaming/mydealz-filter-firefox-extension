@@ -9,18 +9,21 @@
   <body>
     <div class="container">
       <div class="header">
-        <h1>myDealz Filter</h1>
+        <div class="header-row">
+          <h1>myDealz Filter</h1>
+          <button id="themeToggleBtn" class="theme-toggle" type="button" title="Toggle theme">Dark</button>
+        </div>
         <p class="subtitle">Hide postings by keywords</p>
       </div>
 
       <!-- Tab Navigation -->
       <div class="tab-nav">
-        <button id="settingsTabBtn" class="tab-btn active">Settings</button>
-        <button id="hiddenPostsTabBtn" class="tab-btn">Hidden Posts (<span id="hiddenCount">0</span>)</button>
+        <button id="hiddenPostsTabBtn" class="tab-btn active">Hidden Posts (<span id="hiddenCount">0</span>)</button>
+        <button id="settingsTabBtn" class="tab-btn">Settings</button>
       </div>
 
       <!-- Settings Tab Content -->
-      <div id="settingsTab" class="tab-content active">
+      <div id="settingsTab" class="tab-content">
         <div class="form-group">
           <label for="filterTerms">Filter Terms</label>
           <textarea
@@ -77,7 +80,7 @@
       </div>
 
       <!-- Hidden Posts Tab Content -->
-      <div id="hiddenPostsTab" class="tab-content">
+      <div id="hiddenPostsTab" class="tab-content active">
         <div id="hiddenDealsList" class="deals-list">
           <p id="noHiddenDeals">No deals have been hidden on this page.</p>
           <!-- Hidden deals will be populated here -->

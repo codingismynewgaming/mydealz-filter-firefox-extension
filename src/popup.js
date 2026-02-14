@@ -9,6 +9,7 @@ const exceptionTermsTextarea = document.getElementById("exceptionTerms");
 const saveBtn = document.getElementById("saveBtn");
 const clearBtn = document.getElementById("clearBtn");
 const statusDiv = document.getElementById("status");
+const themeToggleBtn = document.getElementById("themeToggleBtn");
 
 // Tab elements
 const settingsTabBtn = document.getElementById("settingsTabBtn");
@@ -23,6 +24,55 @@ const noHiddenDeals = document.getElementById("noHiddenDeals");
 
 // Current hidden deals data
 let currentHiddenDeals = [];
+const MYDEALZ_BASE_HOST = "mydealz.de";
+const THEME_STORAGE_KEY = "popupTheme";
+let currentTheme = "light";
+
+function isMyDealzUrl(url) {
+  if (!url) return false;
+  try {
+    const hostname = new URL(url).hostname.toLowerCase();
+    return hostname === MYDEALZ_BASE_HOST || hostname.endsWith(`.${MYDEALZ_BASE_HOST}`);
+  } catch {
+    return false;
+  }
+}
+
+function detectSystemTheme() {
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function updateThemeToggleLabel() {
+  themeToggleBtn.textContent = currentTheme === "dark" ? "Light" : "Dark";
+  themeToggleBtn.title =
+    currentTheme === "dark" ? "Switch to light mode" : "Switch to dark mode";
+}
+
+function applyTheme(theme) {
+  currentTheme = theme === "dark" ? "dark" : "light";
+  document.documentElement.setAttribute("data-theme", currentTheme);
+  updateThemeToggleLabel();
+}
+
+async function loadThemePreference() {
+  return new Promise((resolve) => {
+    chrome.storage.local.get([THEME_STORAGE_KEY], (result) => {
+      const storedTheme = result[THEME_STORAGE_KEY];
+      const initialTheme =
+        storedTheme === "dark" || storedTheme === "light"
+          ? storedTheme
+          : detectSystemTheme();
+      applyTheme(initialTheme);
+      resolve(initialTheme);
+    });
+  });
+}
+
+async function saveThemePreference(theme) {
+  return new Promise((resolve) => {
+    chrome.storage.local.set({ [THEME_STORAGE_KEY]: theme }, () => resolve());
+  });
+}
 
 /**
  * Load saved filter terms and exception terms from storage
@@ -46,28 +96,36 @@ async function loadFilterTerms() {
  */
 async function loadAndDisplayTotalHiddenCount() {
   return new Promise((resolve) => {
-    chrome.storage.sync.get(["totalHiddenDealCount"], (result) => {
-      const totalHiddenDealCount = result.totalHiddenDealCount || 0;
-      
-      // Find the subtitle element and append the count information
-      const subtitleElement = document.querySelector('.header .subtitle');
-      if (subtitleElement) {
-        // Remove any existing count information
-        const originalSubtitle = "Hide postings by keywords";
-        
-        // Only update if we're adding new information
-        if (!subtitleElement.textContent.includes("Total hidden:")) {
-          subtitleElement.textContent = `${originalSubtitle} • Total hidden: ${totalHiddenDealCount}`;
-        } else {
-          // If already present, just update the number
-          subtitleElement.textContent = subtitleElement.textContent.replace(
-            /Total hidden: \d+/, 
-            `Total hidden: ${totalHiddenDealCount}`
-          );
+    chrome.storage.local.get(["totalHiddenDealCount"], (result) => {
+      const updateSubtitle = (totalHiddenDealCount) => {
+        const subtitleElement = document.querySelector(".header .subtitle");
+        if (subtitleElement) {
+          const originalSubtitle = "Hide postings by keywords";
+          if (!subtitleElement.textContent.includes("Total hidden:")) {
+            subtitleElement.textContent = `${originalSubtitle} • Total hidden: ${totalHiddenDealCount}`;
+          } else {
+            subtitleElement.textContent = subtitleElement.textContent.replace(
+              /Total hidden: \d+/,
+              `Total hidden: ${totalHiddenDealCount}`
+            );
+          }
         }
+
+        resolve({ totalHiddenDealCount });
+      };
+
+      if (Number.isInteger(result.totalHiddenDealCount)) {
+        updateSubtitle(result.totalHiddenDealCount);
+        return;
       }
-      
-      resolve({ totalHiddenDealCount });
+
+      chrome.storage.sync.get(["totalHiddenDealCount"], (syncResult) => {
+        updateSubtitle(
+          Number.isInteger(syncResult.totalHiddenDealCount)
+            ? syncResult.totalHiddenDealCount
+            : 0
+        );
+      });
     });
   });
 }
@@ -108,7 +166,7 @@ function showStatus(message, type = "success") {
  */
 async function notifyContentScripts() {
   const tabs = await chrome.tabs.query({
-    url: "*://www.mydealz.de/*",
+    url: ["*://mydealz.de/*", "*://*.mydealz.de/*"],
   });
 
   for (const tab of tabs) {
@@ -141,7 +199,7 @@ async function displayHiddenDeals() {
       currentWindow: true
     });
 
-    if (tab && tab.url && tab.url.includes("mydealz.de")) {
+    if (tab && isMyDealzUrl(tab.url)) {
       // Request hidden deals from the content script on the current tab
       try {
         const response = await chrome.tabs.sendMessage(tab.id, { type: "getHiddenDeals" });
@@ -311,6 +369,12 @@ clearBtn.addEventListener("click", async () => {
   }
 });
 
+themeToggleBtn.addEventListener("click", async () => {
+  const nextTheme = currentTheme === "dark" ? "light" : "dark";
+  applyTheme(nextTheme);
+  await saveThemePreference(nextTheme);
+});
+
 /**
  * Tab button event listeners
  */
@@ -326,6 +390,8 @@ hiddenPostsTabBtn.addEventListener('click', () => {
  * Initialize popup by loading saved filters and setting up tabs
  */
 async function init() {
+  await loadThemePreference();
+
   // Load the filter terms and exception terms
   await loadFilterTerms();
 
@@ -334,13 +400,10 @@ async function init() {
     filterTermsTextarea.focus();
   }, 100);
 
-  // Set up initial tab state - start with settings tab
-  switchTab('settings');
+  // Set up initial tab state - start with hidden posts for quicker feedback.
+  switchTab('hiddenPosts');
 
-  // Load hidden deals data to update the count
-  await displayHiddenDeals();
-
-  // Load and display the total hidden deal count
+  // Ensure total hidden count is displayed.
   await loadAndDisplayTotalHiddenCount();
 }
 

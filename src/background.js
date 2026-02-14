@@ -5,47 +5,59 @@
 
 // Store hidden deals information by tab ID
 const hiddenDealsInfo = new Map();
+const MYDEALZ_BASE_HOST = "mydealz.de";
+
+function isMyDealzUrl(url) {
+  if (!url) return false;
+  try {
+    const hostname = new URL(url).hostname.toLowerCase();
+    return hostname === MYDEALZ_BASE_HOST || hostname.endsWith(`.${MYDEALZ_BASE_HOST}`);
+  } catch {
+    return false;
+  }
+}
+
+function setTabActionState(tabId, isMyDealz, hiddenCount = 0) {
+  if (tabId === undefined || tabId === null) return;
+
+  if (isMyDealz) {
+    chrome.action.setBadgeText({
+      tabId,
+      text: hiddenCount > 0 ? hiddenCount.toString() : "",
+    });
+    chrome.action.setBadgeBackgroundColor({ tabId, color: "#4CAF50" });
+    chrome.action.setIcon({
+      path: {
+        "48": "icons/icon-48.png",
+        "96": "icons/icon-96.png",
+      },
+      tabId,
+    });
+    return;
+  }
+
+  chrome.action.setBadgeText({ tabId, text: "" });
+  chrome.action.setBadgeBackgroundColor({ tabId, color: "#808080" });
+  chrome.action.setIcon({
+    path: {
+      "48": "icons/icon-48-grey.png",
+      "96": "icons/icon-96-grey.png",
+    },
+    tabId,
+  });
+}
 
 // Listen for messages from content script
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.type === "updateBadge") {
-    // Check if the sender is on mydealz.de
-    if (sender.tab && sender.tab.url && sender.tab.url.includes("mydealz.de")) {
-      if (request.count > 0) {
-        chrome.action.setBadgeText({ text: request.count.toString() });
-        chrome.action.setBadgeBackgroundColor({ color: "#4CAF50" }); // Green color
-      } else {
-        chrome.action.setBadgeText({ text: "" });
-        chrome.action.setBadgeBackgroundColor({ color: "#4CAF50" }); // Green color when on mydealz but no hidden items
-      }
-      // Store hidden deals info for this tab
-      if (sender.tab && sender.tab.id !== undefined) {
+    if (sender.tab && sender.tab.id !== undefined) {
+      const isMyDealzTab = isMyDealzUrl(sender.tab.url);
+      if (isMyDealzTab) {
         hiddenDealsInfo.set(sender.tab.id, request.hiddenDeals || []);
+      } else {
+        hiddenDealsInfo.delete(sender.tab.id);
       }
-      // Set the active icon since we're on mydealz.de
-      if (sender.tab && sender.tab.id !== undefined) {
-        chrome.action.setIcon({
-          path: {
-            "48": "icons/icon-48.png",
-            "96": "icons/icon-96.png"
-          },
-          tabId: sender.tab.id
-        });
-      }
-    } else {
-      // If not on mydealz.de, hide badge and use grey icon
-      chrome.action.setBadgeText({ text: "" });
-      chrome.action.setBadgeBackgroundColor({ color: "#808080" }); // Grey color
-      // Set the inactive icon since we're not on mydealz.de
-      if (sender.tab && sender.tab.id !== undefined) {
-        chrome.action.setIcon({
-          path: {
-            "48": "icons/icon-48-grey.png",
-            "96": "icons/icon-96-grey.png"
-          },
-          tabId: sender.tab.id
-        });
-      }
+      setTabActionState(sender.tab.id, isMyDealzTab, request.count || 0);
     }
     sendResponse({ status: "badge updated" });
   } else if (request.type === "getHiddenDeals") {
@@ -63,37 +75,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 chrome.tabs.onActivated.addListener(async (activeInfo) => {
   try {
     const tab = await chrome.tabs.get(activeInfo.tabId);
-    if (tab.url && tab.url.includes("mydealz.de")) {
-      // On mydealz.de - show green icon, potentially with count
-      const deals = hiddenDealsInfo.get(tab.id) || [];
-      if (deals.length > 0) {
-        chrome.action.setBadgeText({ text: deals.length.toString() });
-        chrome.action.setBadgeBackgroundColor({ color: "#4CAF50" }); // Green color
-      } else {
-        chrome.action.setBadgeText({ text: "" });
-        chrome.action.setBadgeBackgroundColor({ color: "#4CAF50" }); // Green color when on mydealz
-      }
-      // Set the active icon
-      chrome.action.setIcon({
-        path: {
-          "48": "icons/icon-48.png",
-          "96": "icons/icon-96.png"
-        },
-        tabId: tab.id
-      });
-    } else {
-      // Not on mydealz.de - show grey icon, no count
-      chrome.action.setBadgeText({ text: "" });
-      chrome.action.setBadgeBackgroundColor({ color: "#808080" }); // Grey color
-      // Set the inactive icon
-      chrome.action.setIcon({
-        path: {
-          "48": "icons/icon-48-grey.png",
-          "96": "icons/icon-96-grey.png"
-        },
-        tabId: tab.id
-      });
-    }
+    const isMyDealzTab = isMyDealzUrl(tab.url);
+    const deals = isMyDealzTab ? hiddenDealsInfo.get(tab.id) || [] : [];
+    setTabActionState(tab.id, isMyDealzTab, deals.length);
   } catch (error) {
     console.error("Error updating badge on tab activation:", error);
   }
@@ -101,49 +85,13 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
 
 // Handle tab updates to update badge and icon when URL changes
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (changeInfo.status === 'complete' && tab.url) {
-    if (tab.url.includes("mydealz.de")) {
-      // On mydealz.de - show green icon, potentially with count
-      const deals = hiddenDealsInfo.get(tabId) || [];
-      if (deals.length > 0) {
-        chrome.action.setBadgeText({ text: deals.length.toString() });
-        chrome.action.setBadgeBackgroundColor({ color: "#4CAF50" }); // Green color
-      } else {
-        chrome.action.setBadgeText({ text: "" });
-        chrome.action.setBadgeBackgroundColor({ color: "#4CAF50" }); // Green color when on mydealz
-      }
-      // Set the active icon
-      chrome.action.setIcon({
-        path: {
-          "48": "icons/icon-48.png",
-          "96": "icons/icon-96.png"
-        },
-        tabId: tabId
-      });
-    } else {
-      // Not on mydealz.de - show grey icon, no count
-      chrome.action.setBadgeText({ text: "" });
-      chrome.action.setBadgeBackgroundColor({ color: "#808080" }); // Grey color
-      // Set the inactive icon
-      chrome.action.setIcon({
-        path: {
-          "48": "icons/icon-48-grey.png",
-          "96": "icons/icon-96-grey.png"
-        },
-        tabId: tabId
-      });
+  if (changeInfo.status === "complete") {
+    const isMyDealzTab = isMyDealzUrl(tab.url);
+    if (!isMyDealzTab) {
+      hiddenDealsInfo.delete(tabId);
     }
-  }
-});
-
-// Handle extension icon click - open popup
-chrome.action.onClicked.addListener(async (tab) => {
-  if (tab.url && tab.url.includes("mydealz.de")) {
-    // Open the popup - the popup will fetch hidden deals directly
-    chrome.action.openPopup();
-  } else {
-    // If not on mydealz.de, just open the popup without hidden deals
-    chrome.action.openPopup();
+    const deals = isMyDealzTab ? hiddenDealsInfo.get(tabId) || [] : [];
+    setTabActionState(tabId, isMyDealzTab, deals.length);
   }
 });
 
