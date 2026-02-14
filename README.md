@@ -6,7 +6,8 @@ myDealz Filter hides unwanted deals on `mydealz.de` based on your keywords.
 
 ## Install
 
-- Localocal install:
+Local install:
+
   1. Open `about:debugging#/runtime/this-firefox` in Firefox.
   2. Click `Load Temporary Add-on...`.
   3. Select this project's `manifest.json`.
