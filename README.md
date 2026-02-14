@@ -4,6 +4,14 @@ Version: 1.0.1
 
 myDealz Filter hides unwanted deals on `mydealz.de` based on your keywords.
 
+## Install
+
+- Firefox Add-ons (recommended): https://addons.mozilla.org/firefox/
+- Temporary local install (for testing):
+  1. Open `about:debugging#/runtime/this-firefox` in Firefox.
+  2. Click `Load Temporary Add-on...`.
+  3. Select this project's `manifest.json`.
+
 ## What it does
 
 - Hides deals by title keywords
