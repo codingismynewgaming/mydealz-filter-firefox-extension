@@ -8,6 +8,10 @@ const DEBUG = false; // Set to true for console logging
 // Store the hidden count and details
 let hiddenCount = 0;
 let hiddenDeals = []; // Track hidden deals with details
+const hiddenDealKeys = new Set(); // Prevent duplicate hidden deals within one page session
+
+// Store the total count of hidden deals across sessions
+let totalHiddenDealCount = 0;
 
 /**
  * Debug logging helper
@@ -17,51 +21,84 @@ function log(...args) {
 }
 
 /**
- * Get filter terms from storage
+ * Load the total hidden deal count from storage
+ */
+async function loadTotalHiddenDealCount() {
+  return new Promise((resolve) => {
+    chrome.storage.sync.get(["totalHiddenDealCount"], (result) => {
+      totalHiddenDealCount = result.totalHiddenDealCount || 0;
+      log("Loaded total hidden deal count from storage:", totalHiddenDealCount);
+      resolve(totalHiddenDealCount);
+    });
+  });
+}
+
+
+/**
+ * Get filter terms and exception terms from storage
  */
 async function getFilterTerms() {
   return new Promise((resolve) => {
     try {
-      chrome.storage.sync.get(["filterTerms"], (result) => {
+      chrome.storage.sync.get(["filterTerms", "exceptionTerms"], (result) => {
         // Check for errors
         if (chrome.runtime.lastError) {
           log("Error retrieving filter terms:", chrome.runtime.lastError);
-          resolve([]);
+          resolve({ filterTerms: [], exceptionTerms: [] });
           return;
         }
+
+        const filterTerms = result.filterTerms || "";
+        const exceptionTerms = result.exceptionTerms || "";
         
-        const terms = result.filterTerms || "";
-        // Split by comma and trim whitespace
-        const termsList = terms
+        // Split by comma and trim whitespace for filter terms
+        const filterTermsList = filterTerms
           .split(",")
           .map((term) => term.trim().toLowerCase())
           .filter((term) => term.length > 0);
-        resolve(termsList);
+          
+        // Split by comma and trim whitespace for exception terms
+        const exceptionTermsList = exceptionTerms
+          .split(",")
+          .map((term) => term.trim().toLowerCase())
+          .filter((term) => term.length > 0);
+          
+        resolve({ filterTerms: filterTermsList, exceptionTerms: exceptionTermsList });
       });
     } catch (error) {
       log("Exception getting filter terms:", error);
-      resolve([]);
+      resolve({ filterTerms: [], exceptionTerms: [] });
     }
   });
 }
 
 /**
- * Check if a title matches any filter term (case-insensitive)
+ * Check if a title matches any filter term but excludes terms that also contain exception terms
  * Uses optimized matching with early termination
  */
-function matchesFilter(title, filterTerms) {
+function matchesFilter(title, filterTerms, exceptionTerms) {
   if (!title || filterTerms.length === 0) return false;
-  
+
   // Convert title to lowercase once for all comparisons
   const lowerTitle = title.toLowerCase();
-  
-  // Use a more efficient loop with early termination
+
+  // First check if the title contains any exception terms
+  if (exceptionTerms && exceptionTerms.length > 0) {
+    for (const exceptionTerm of exceptionTerms) {
+      if (lowerTitle.includes(exceptionTerm.toLowerCase())) {
+        // If it contains an exception term, don't filter it even if it contains filter terms
+        return false;
+      }
+    }
+  }
+
+  // Use a more efficient loop with early termination to check filter terms
   for (const term of filterTerms) {
     if (lowerTitle.includes(term)) {
       return true; // Early return on first match
     }
   }
-  
+
   return false;
 }
 
@@ -241,46 +278,71 @@ function findDealPostings() {
   return postings;
 }
 
+function clearProcessedMarkers() {
+  document.querySelectorAll('[data-mydealz-processed="true"]').forEach((el) => {
+    el.removeAttribute("data-mydealz-processed");
+  });
+}
+
 /**
- * Hide postings that match filter terms
+ * Hide postings that match filter terms but exclude those that also match exception terms
  * Optimized for performance with batch DOM operations
  */
-async function filterPostings() {
-  const filterTerms = await getFilterTerms();
+async function filterPostings(options = {}) {
+  const { fullRescan = false, resetSession = false } = options;
+
+  if (fullRescan) {
+    clearProcessedMarkers();
+  }
+
+  if (resetSession) {
+    hiddenCount = 0;
+    hiddenDeals = [];
+    hiddenDealKeys.clear();
+  }
+
+  const { filterTerms, exceptionTerms } = await getFilterTerms();
 
   // If no filter terms, show everything
   if (filterTerms.length === 0) {
     hiddenCount = 0;
     hiddenDeals = []; // Reset hidden deals array
-    
+    hiddenDealKeys.clear();
+
     // Show all previously hidden elements
     document.querySelectorAll('[data-mydealz-filtered="true"]').forEach(el => {
       el.style.display = "";
       el.removeAttribute("data-mydealz-filtered");
       el.removeAttribute("data-filter-term"); // Remove filter term attribute
+      el.removeAttribute("data-mydealz-counted"); // Remove counted attribute as well
     });
     updateBadge(0);
     return;
   }
 
   const postings = findDealPostings();
-  hiddenCount = 0;
-  hiddenDeals = []; // Reset for this filtering cycle
 
   // Batch DOM operations for better performance
   const elementsToHide = [];
   const elementsToShow = [];
+  let newHiddenCount = 0;
 
   postings.forEach(({ element, title }) => {
-    if (matchesFilter(title, filterTerms)) {
-      // Find which term matched
+    if (matchesFilter(title, filterTerms, exceptionTerms)) {
+      // Find which term matched (among filter terms, not exception terms)
       const matchingTerm = filterTerms.find(term => title.toLowerCase().includes(term));
-      
-      if (element.style.display !== "none") {
-        elementsToHide.push({element, title, matchingTerm});
-        hiddenDeals.push({title, url: element.querySelector('a[href*="/deals/"]')?.href || '', matchingTerm});
+      const dealUrl = element.querySelector('a[href*="/deals/"]')?.href || "";
+      const dealKey = `${dealUrl || title.toLowerCase()}|${matchingTerm}`;
+
+      if (!hiddenDealKeys.has(dealKey)) {
+        hiddenDealKeys.add(dealKey);
+        hiddenDeals.push({ title, url: dealUrl, matchingTerm });
+        newHiddenCount++;
       }
-      hiddenCount++;
+
+      if (element.style.display !== "none") {
+        elementsToHide.push({ element, matchingTerm });
+      }
     } else {
       if (element.style.display === "none" && element.getAttribute("data-mydealz-filtered") === "true") {
         elementsToShow.push(element);
@@ -289,7 +351,7 @@ async function filterPostings() {
   });
 
   // Apply hiding in batch
-  elementsToHide.forEach(({element, title, matchingTerm}) => {
+  elementsToHide.forEach(({ element, matchingTerm }) => {
     element.style.display = "none";
     element.setAttribute("data-mydealz-filtered", "true");
     element.setAttribute("data-filter-term", matchingTerm); // Store which term caused the hiding
@@ -300,21 +362,42 @@ async function filterPostings() {
     element.style.display = "";
     element.removeAttribute("data-mydealz-filtered");
     element.removeAttribute("data-filter-term");
+    element.removeAttribute("data-mydealz-counted"); // Also remove counted attribute when showing
   });
 
-  // Update badge
-  updateBadge(hiddenCount);
+  // Keep a cumulative per-page session count.
+  hiddenCount = hiddenDeals.length;
+  updateBadge(hiddenCount, newHiddenCount);
 }
 
 /**
  * Update the badge count in the extension icon
  */
-function updateBadge(count) {
+async function updateBadge(currentCount, newHiddenCount = 0) {
   try {
+    // Update the total hidden deal count by the number of newly hidden deals
+    if (newHiddenCount > 0) {
+      totalHiddenDealCount += newHiddenCount;
+    }
+    
+    // Save both counts to storage in a single operation
+    const storageUpdate = {
+      hiddenDealCount: currentCount,
+      totalHiddenDealCount: totalHiddenDealCount
+    };
+    
+    chrome.storage.sync.set(storageUpdate, () => {
+      if (chrome.runtime.lastError) {
+        log("Error saving hidden deal counts to storage:", chrome.runtime.lastError);
+      } else {
+        log("Saved hidden deal counts to storage - current:", currentCount, "total:", totalHiddenDealCount);
+      }
+    });
+
     chrome.runtime.sendMessage(
-      { 
-        type: "updateBadge", 
-        count: count,
+      {
+        type: "updateBadge",
+        count: currentCount,
         hiddenDeals: hiddenDeals
       },
       (response) => {
@@ -360,10 +443,12 @@ function observeChanges() {
     if (shouldRefilter && !isFiltering) {
       // Debounce to avoid too many rapid filter operations
       clearTimeout(observeChanges.timeout);
-      observeChanges.timeout = setTimeout(() => {
-        if (!isFiltering) {  // Double-check flag inside timeout
-          isFiltering = true;
-          filterPostings();
+      observeChanges.timeout = setTimeout(async () => {
+        if (isFiltering) return;
+        isFiltering = true;
+        try {
+          await filterPostings();
+        } finally {
           isFiltering = false;
         }
       }, 1000); // Increased debounce time
@@ -383,18 +468,39 @@ function observeChanges() {
  */
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.type === "filtersChanged") {
-    filterPostings();
-    sendResponse({ status: "filters applied" });
+    filterPostings({ fullRescan: true, resetSession: true })
+      .then(() => sendResponse({ status: "filters applied" }))
+      .catch((error) => {
+        log("Error applying filters after change:", error);
+        sendResponse({ status: "error applying filters" });
+      });
   } else if (request.type === "getHiddenDeals") {
     sendResponse({ hiddenDeals: [...hiddenDeals] }); // Return a copy of the hidden deals array
   }
   return true; // Required to keep message channel open for async response
 });
 
-/**
- * Initialize the filter when page loads
- */
-function init() {
+// Reset hidden deals when the page is reloaded, but preserve the total count
+window.addEventListener('beforeunload', () => {
+  hiddenCount = 0;
+  hiddenDeals = [];
+  hiddenDealKeys.clear();
+  updateBadge(0); // This will update the current count but preserve the total
+
+  // Also reset any hidden elements to visible state
+  document.querySelectorAll('[data-mydealz-filtered="true"]').forEach(el => {
+    el.style.display = "";
+    el.removeAttribute("data-mydealz-filtered");
+    el.removeAttribute("data-filter-term");
+    el.removeAttribute("data-mydealz-counted"); // Remove the counted attribute as well
+  });
+});
+
+// Initialize and start the filter
+async function init() {
+  // Load the total hidden deal count from storage
+  await loadTotalHiddenDealCount();
+  
   // Wait a moment for the page to fully load
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", () => {
@@ -410,20 +516,6 @@ function init() {
     }, 1000); // Increased delay to allow more content to load
   }
 }
-
-// Reset hidden deals when the page is reloaded
-window.addEventListener('beforeunload', () => {
-  hiddenCount = 0;
-  hiddenDeals = [];
-  updateBadge(0);
-  
-  // Also reset any hidden elements to visible state
-  document.querySelectorAll('[data-mydealz-filtered="true"]').forEach(el => {
-    el.style.display = "";
-    el.removeAttribute("data-mydealz-filtered");
-    el.removeAttribute("data-filter-term");
-  });
-});
 
 // Start the filter
 init();

@@ -26,11 +26,25 @@
           <textarea
             id="filterTerms"
             placeholder="Enter keywords separated by commas&#10;Example: iPhone, Apple, Samsung"
-            rows="5"
+            rows="3"
           ></textarea>
           <p class="hint">
             Enter keywords separated by commas. Postings with these terms in the
-            title will be hidden.
+            title will be hidden (unless they also contain an exception term).
+          </p>
+        </div>
+
+        <div class="form-group">
+          <label for="exceptionTerms">Exception Terms</label>
+          <textarea
+            id="exceptionTerms"
+            placeholder="Enter exception keywords separated by commas&#10;Example: Android, Windows"
+            rows="3"
+          ></textarea>
+          <p class="hint">
+            Enter keywords separated by commas. Postings containing these terms will NOT be hidden,
+            even if they also contain filter terms. Example: If you filter 'Apple' but add 'Android' 
+            as an exception, a post titled 'Apple and Android phone deals' won't be hidden.
           </p>
         </div>
 

@@ -5,6 +5,7 @@
 
 // Main elements
 const filterTermsTextarea = document.getElementById("filterTerms");
+const exceptionTermsTextarea = document.getElementById("exceptionTerms");
 const saveBtn = document.getElementById("saveBtn");
 const clearBtn = document.getElementById("clearBtn");
 const statusDiv = document.getElementById("status");
@@ -24,27 +25,66 @@ const noHiddenDeals = document.getElementById("noHiddenDeals");
 let currentHiddenDeals = [];
 
 /**
- * Load saved filter terms from storage
+ * Load saved filter terms and exception terms from storage
  */
 async function loadFilterTerms() {
   return new Promise((resolve) => {
-    chrome.storage.sync.get(["filterTerms"], (result) => {
-      const terms = result.filterTerms || "";
-      filterTermsTextarea.value = terms;
-      resolve(terms);
+    chrome.storage.sync.get(["filterTerms", "exceptionTerms"], (result) => {
+      const filterTerms = result.filterTerms || "";
+      const exceptionTerms = result.exceptionTerms || "";
+
+      filterTermsTextarea.value = filterTerms;
+      exceptionTermsTextarea.value = exceptionTerms;
+
+      resolve({ filterTerms, exceptionTerms });
     });
   });
 }
 
 /**
- * Save filter terms to storage
+ * Load and display the total hidden deal count from storage
+ */
+async function loadAndDisplayTotalHiddenCount() {
+  return new Promise((resolve) => {
+    chrome.storage.sync.get(["totalHiddenDealCount"], (result) => {
+      const totalHiddenDealCount = result.totalHiddenDealCount || 0;
+      
+      // Find the subtitle element and append the count information
+      const subtitleElement = document.querySelector('.header .subtitle');
+      if (subtitleElement) {
+        // Remove any existing count information
+        const originalSubtitle = "Hide postings by keywords";
+        
+        // Only update if we're adding new information
+        if (!subtitleElement.textContent.includes("Total hidden:")) {
+          subtitleElement.textContent = `${originalSubtitle} • Total hidden: ${totalHiddenDealCount}`;
+        } else {
+          // If already present, just update the number
+          subtitleElement.textContent = subtitleElement.textContent.replace(
+            /Total hidden: \d+/, 
+            `Total hidden: ${totalHiddenDealCount}`
+          );
+        }
+      }
+      
+      resolve({ totalHiddenDealCount });
+    });
+  });
+}
+
+/**
+ * Save filter terms and exception terms to storage
  */
 async function saveFilterTerms() {
   const filterTerms = filterTermsTextarea.value.trim();
+  const exceptionTerms = exceptionTermsTextarea.value.trim();
 
   return new Promise((resolve) => {
-    chrome.storage.sync.set({ filterTerms: filterTerms }, () => {
-      resolve(filterTerms);
+    chrome.storage.sync.set({ 
+      filterTerms: filterTerms,
+      exceptionTerms: exceptionTerms
+    }, () => {
+      resolve({ filterTerms, exceptionTerms });
     });
   });
 }
@@ -83,6 +123,11 @@ async function notifyContentScripts() {
       }
     );
   }
+  
+  // Update the total hidden count display after notifying content scripts
+  setTimeout(async () => {
+    await loadAndDisplayTotalHiddenCount();
+  }, 1500); // Give content scripts time to update the counts
 }
 
 /**
@@ -93,53 +138,65 @@ async function displayHiddenDeals() {
     // Get the current active tab
     const [tab] = await chrome.tabs.query({
       active: true,
-      currentWindow: true,
-      url: "*://www.mydealz.de/*"
+      currentWindow: true
     });
 
-    if (tab) {
+    if (tab && tab.url && tab.url.includes("mydealz.de")) {
       // Request hidden deals from the content script on the current tab
-      const response = await chrome.tabs.sendMessage(tab.id, { type: "getHiddenDeals" });
-      currentHiddenDeals = response?.hiddenDeals || [];
-      
-      if (currentHiddenDeals && currentHiddenDeals.length > 0) {
-        // Update the hidden count in the tab button
-        hiddenCountSpan.textContent = currentHiddenDeals.length;
-        
-        // Clear the list
-        hiddenDealsList.innerHTML = '';
+      try {
+        const response = await chrome.tabs.sendMessage(tab.id, { type: "getHiddenDeals" });
+        currentHiddenDeals = response?.hiddenDeals || [];
 
-        // Add each hidden deal to the list
-        currentHiddenDeals.forEach(deal => {
-          const dealItem = document.createElement('div');
-          dealItem.className = 'deal-item';
+        if (currentHiddenDeals && currentHiddenDeals.length > 0) {
+          // Update the hidden count in the tab button
+          hiddenCountSpan.textContent = currentHiddenDeals.length;
 
-          const titleElement = document.createElement('div');
-          titleElement.className = 'deal-title';
+          // Clear the list
+          hiddenDealsList.innerHTML = '';
 
-          if (deal.url) {
-            const link = document.createElement('a');
-            link.href = deal.url;
-            link.target = '_blank';
-            link.rel = 'noopener noreferrer';
-            link.textContent = deal.title;
-            titleElement.appendChild(link);
-          } else {
-            titleElement.textContent = deal.title;
-          }
+          // Add each hidden deal to the list
+          currentHiddenDeals.forEach(deal => {
+            const dealItem = document.createElement('div');
+            dealItem.className = 'deal-item';
 
-          const termElement = document.createElement('div');
-          termElement.className = 'deal-term';
-          termElement.textContent = `Hidden by: "${deal.matchingTerm}"`;
+            const titleElement = document.createElement('div');
+            titleElement.className = 'deal-title';
 
-          dealItem.appendChild(titleElement);
-          dealItem.appendChild(termElement);
-          hiddenDealsList.appendChild(dealItem);
-        });
-      } else {
+            if (deal.url) {
+              const link = document.createElement('a');
+              link.href = deal.url;
+              link.target = '_blank';
+              link.rel = 'noopener noreferrer';
+              link.textContent = deal.title;
+              titleElement.appendChild(link);
+            } else {
+              titleElement.textContent = deal.title;
+            }
+
+            const termElement = document.createElement('div');
+            termElement.className = 'deal-term';
+            termElement.textContent = `Hidden by: "${deal.matchingTerm}"`;
+
+            dealItem.appendChild(titleElement);
+            dealItem.appendChild(termElement);
+            hiddenDealsList.appendChild(dealItem);
+          });
+        } else {
+          // Update the hidden count in the tab button
+          hiddenCountSpan.textContent = '0';
+
+          // Show default message when no hidden deals
+          noHiddenDeals.textContent = "No deals have been hidden on this page.";
+          noHiddenDeals.style.display = "block";
+          hiddenDealsList.innerHTML = '';
+          hiddenDealsList.appendChild(noHiddenDeals);
+        }
+      } catch (sendError) {
+        // Content script may not be loaded yet or tab may not be ready
+        console.error("Error getting hidden deals from content script:", sendError);
         // Update the hidden count in the tab button
         hiddenCountSpan.textContent = '0';
-        
+
         // Show default message when no hidden deals
         noHiddenDeals.textContent = "No deals have been hidden on this page.";
         noHiddenDeals.style.display = "block";
@@ -149,23 +206,29 @@ async function displayHiddenDeals() {
     } else {
       // Update the hidden count in the tab button
       hiddenCountSpan.textContent = '0';
-      
+
       // Show default message when not on mydealz.de
       noHiddenDeals.textContent = "Visit mydealz.de to see hidden deals.";
       noHiddenDeals.style.display = "block";
       hiddenDealsList.innerHTML = '';
       hiddenDealsList.appendChild(noHiddenDeals);
     }
+    
+    // Update the total hidden count display
+    await loadAndDisplayTotalHiddenCount();
   } catch (error) {
-    console.error("Error getting hidden deals:", error);
+    console.error("Error getting active tab:", error);
     // Update the hidden count in the tab button
     hiddenCountSpan.textContent = '0';
-    
+
     // Show default message when no hidden deals
     noHiddenDeals.textContent = "No deals have been hidden on this page.";
     noHiddenDeals.style.display = "block";
     hiddenDealsList.innerHTML = '';
     hiddenDealsList.appendChild(noHiddenDeals);
+    
+    // Update the total hidden count display
+    await loadAndDisplayTotalHiddenCount();
   }
 }
 
@@ -200,20 +263,23 @@ function switchTab(tabName) {
  */
 saveBtn.addEventListener("click", async () => {
   try {
-    const filterTerms = await saveFilterTerms();
-    const termCount = filterTerms
+    const { filterTerms, exceptionTerms } = await saveFilterTerms();
+    const filterTermCount = filterTerms
+      .split(",")
+      .filter((term) => term.trim().length > 0).length;
+    const exceptionTermCount = exceptionTerms
       .split(",")
       .filter((term) => term.trim().length > 0).length;
 
-    if (termCount > 0) {
-      showStatus(`✓ Saved ${termCount} filter term(s)!`, "success");
+    if (filterTermCount > 0 || exceptionTermCount > 0) {
+      showStatus(`✓ Saved ${filterTermCount} filter term(s) and ${exceptionTermCount} exception term(s)!`, "success");
     } else {
-      showStatus("✓ Filter cleared", "success");
+      showStatus("✓ Filters cleared", "success");
     }
 
     // Notify content scripts about the change
     await notifyContentScripts();
-    
+
     // Refresh hidden deals after saving filters
     if (hiddenPostsTab.classList.contains('active')) {
       displayHiddenDeals();
@@ -228,16 +294,17 @@ saveBtn.addEventListener("click", async () => {
  * Clear button click handler
  */
 clearBtn.addEventListener("click", async () => {
-  if (filterTermsTextarea.value.trim() === "") {
+  if (filterTermsTextarea.value.trim() === "" && exceptionTermsTextarea.value.trim() === "") {
     showStatus("Already empty", "success");
     return;
   }
 
   filterTermsTextarea.value = "";
+  exceptionTermsTextarea.value = "";
   await saveFilterTerms();
   showStatus("✓ All filters cleared", "success");
   await notifyContentScripts();
-  
+
   // Refresh hidden deals after clearing filters
   if (hiddenPostsTab.classList.contains('active')) {
     displayHiddenDeals();
@@ -259,19 +326,22 @@ hiddenPostsTabBtn.addEventListener('click', () => {
  * Initialize popup by loading saved filters and setting up tabs
  */
 async function init() {
-  // Load the filter terms
+  // Load the filter terms and exception terms
   await loadFilterTerms();
 
-  // Focus on the textarea for better UX
+  // Focus on the filter terms textarea for better UX
   setTimeout(() => {
     filterTermsTextarea.focus();
   }, 100);
 
   // Set up initial tab state - start with settings tab
   switchTab('settings');
-  
+
   // Load hidden deals data to update the count
   await displayHiddenDeals();
+
+  // Load and display the total hidden deal count
+  await loadAndDisplayTotalHiddenCount();
 }
 
 // Initialize the popup

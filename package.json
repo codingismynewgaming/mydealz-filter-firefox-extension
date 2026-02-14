@@ -1,0 +1,10 @@
+{
+  "version": "1.0.0",
+  "scripts": {
+    "lint:amo": "npx web-ext lint --source-dir .",
+    "build:amo": "npx web-ext build --source-dir . --artifacts-dir web-ext-artifacts --overwrite-dest --ignore-files \"node_modules/**\" \".git/**\" \"web-ext-artifacts/**\" \"mydealz-filter-extension-v*.zip\" \"*.log\" \"*.tmp\" \"DEVELOPMENT.md\" \"PROJECT_SUMMARY.md\" \"GITHUB_SKILLS.md\" \"INSTRUCTIONS.md\" \"SETUP.md\" \"screenshot-ui.png\" \"AMO_SUBMISSION.md\" \"AMO_LISTING.md\" \"PRIVACY_POLICY.md\" \"package.json\" \"package-lock.json\""
+  },
+  "dependencies": {
+    "skillfish": "^1.0.28"
+  }
+}
