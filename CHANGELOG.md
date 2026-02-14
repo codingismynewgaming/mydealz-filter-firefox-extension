@@ -17,6 +17,8 @@
 - Keyword matching now follows exact term boundaries (`Audi` no longer matches `Audible`).
 - Matching is now accent-insensitive (`Pokemon` matches `Pokémon`).
 - "Total hidden" now tracks unique deals ever hidden, with deduplicated persistent state.
+- Firefox popup rendering regression fixed (popup no longer collapses to a scrollbar-only view).
+- Added `tabs` permission required by popup/background tab queries.
 
 ## [1.0.0] - 2026-02-11
 

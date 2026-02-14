@@ -4,7 +4,8 @@
   "version": "1.0.1",
   "description": "Filter myDealz postings by keywords in titles. Hide unwanted deals and show the number of hidden postings.",
   "permissions": [
-    "storage"
+    "storage",
+    "tabs"
   ],
   "host_permissions": [
     "*://mydealz.de/*",
