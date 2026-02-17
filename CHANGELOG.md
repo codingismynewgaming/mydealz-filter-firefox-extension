@@ -8,6 +8,9 @@
 - Dokumentation zur `git`-basierten Versionskontrolle ergänzt (README und npm-Skript `git:status`).
 - Versionsnummer wird jetzt direkt im Popup angezeigt.
 - Hinweistext zur Inoffiziellen/Open-Source-Natur in Popup und Dokumentation ergänzt.
+- Dedicated `options_ui` settings page (`src/options.html`) for Firefox Android/Nightly add-on options.
+- Hidden deals list with refresh in the new options page for Android/Nightly usage.
+- README ergänzt um Firefox-Android-Kompatibilität und Nightly-Navigation.
 
 ### Changed
 - Auf `mydealz.de/deals/*` wird kein automatisches Ausblenden mehr ausgeführt, damit aus der Hidden-Deals-Liste geöffnete Deals sichtbar bleiben.

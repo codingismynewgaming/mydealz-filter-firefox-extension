@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>myDealz Filter Settings</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <main class="page">
+      <section class="card">
+        <header class="header">
+          <h1>myDealz Filter Settings</h1>
+          <p class="subtitle">Set filter and exception keywords</p>
+        </header>
+
+        <div class="form-group">
+          <label for="filterTerms">Filter Terms</label>
+          <textarea
+            id="filterTerms"
+            rows="4"
+            placeholder="Enter keywords separated by commas&#10;Example: iPhone, Apple, Samsung"
+          ></textarea>
+          <p class="hint">
+            Deals containing these terms in the title will be hidden unless they also match an
+            exception term.
+          </p>
+        </div>
+
+        <div class="form-group">
+          <label for="exceptionTerms">Exception Terms</label>
+          <textarea
+            id="exceptionTerms"
+            rows="4"
+            placeholder="Enter exception keywords separated by commas&#10;Example: Android, Windows"
+          ></textarea>
+          <p class="hint">
+            Deals containing these terms remain visible even if they contain a filter term.
+          </p>
+        </div>
+
+        <div class="button-group">
+          <button id="saveBtn" class="btn btn-primary" type="button">Save Filters</button>
+          <button id="clearBtn" class="btn btn-secondary" type="button">Clear All</button>
+        </div>
+
+        <div id="status" class="status" aria-live="polite"></div>
+
+        <section class="hidden-section">
+          <div class="hidden-section-header">
+            <h2>Hidden Deals (<span id="hiddenCount">0</span>)</h2>
+            <button id="refreshHiddenBtn" class="btn btn-secondary refresh-btn" type="button">
+              Refresh
+            </button>
+          </div>
+
+          <div id="hiddenDealsList" class="deals-list">
+            <p id="noHiddenDeals">No deals have been hidden on this page.</p>
+          </div>
+        </section>
+
+        <footer class="footer-note">
+          <p id="optionsVersion" class="version-label">Version</p>
+          <p class="legal-note">
+            MyDealz Filter ist ein inoffizielles Open Source Hobbyprojekt, kein eigenes Angebot der
+            MyDealz Webseite / Atolls Germany GmbH.
+          </p>
+        </footer>
+      </section>
+    </main>
+
+    <script src="options.js"></script>
+  </body>
+</html>
