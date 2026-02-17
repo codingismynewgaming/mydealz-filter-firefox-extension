@@ -1,12 +1,22 @@
 # myDealz Filter
 
-Version: 1.0.2
+Version: 1.0.3
 
 myDealz Filter hides unwanted deals on `mydealz.de` based on your keywords.
 
-## Hinweis
+## Hinweis / Disclaimer
 
-MyDealz Filter ist ein inoffizielles Open Source Hobbyprojekt, kein eigenes Angebot der MyDealz Webseite / Atolls Germany GmbH.
+Dieses Projekt ist eine inoffizielle Browser-Erweiterung und steht in keiner Verbindung zu MyDealz, Pepper.com oder deren Partnern.
+Die Erweiterung arbeitet ausschließlich clientseitig und passt lediglich die Darstellung der MyDealz-Website im Browser des Nutzers an.
+
+- Es werden keine Inhalte von MyDealz gespeichert oder weitergegeben.
+- Es werden keine technischen Schutzmaßnahmen umgangen.
+- Es werden keine Affiliate-Links verändert oder ersetzt.
+- Es findet keine Datenübertragung an den Entwickler oder Dritte statt.
+
+Alle Marken- und Produktnamen (einschließlich „MyDealz“) sind Eigentum der jeweiligen Rechteinhaber und werden ausschließlich zur eindeutigen Beschreibung der Kompatibilität verwendet.
+Die Nutzung dieser Erweiterung erfolgt auf eigene Verantwortung.
+Es liegt in der Verantwortung des Nutzers, die Nutzungsbedingungen von MyDealz zu beachten.
 
 ## Install
 

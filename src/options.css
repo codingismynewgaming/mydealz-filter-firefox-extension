@@ -243,6 +243,25 @@ textarea:focus {
   color: var(--muted);
   font-size: 12px;
   line-height: 1.4;
+  text-align: left;
+}
+
+.legal-disclaimer {
+  display: grid;
+  gap: 4px;
+}
+
+.legal-list {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+  text-align: left;
+}
+
+.legal-list li {
+  margin-bottom: 2px;
 }
 
 @media (max-width: 520px) {

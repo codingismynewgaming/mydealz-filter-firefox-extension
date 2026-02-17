@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [1.0.3] - 2026-02-17
+
+### Added
+- Vollständigen rechtlichen Hinweis/Disclaimer in `README.md` ergänzt.
+- Vollständigen rechtlichen Hinweis/Disclaimer am unteren Ende der Settings-Ansicht im Popup ergänzt.
+- Vollständigen rechtlichen Hinweis/Disclaimer am unteren Ende der `options_ui`-Seite ergänzt.
+
+### Changed
+- Versionsnummer auf `1.0.3` erhöht (`manifest.json`, `manifest.chrome.json`, `package.json`, README).
+
 ## [1.0.2] - 2026-02-17
 
 ### Added
