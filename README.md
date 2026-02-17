@@ -28,18 +28,6 @@ Or local install from the unsigned Zip in Release:
   2. Click `Load Temporary Add-on...`.
   3. Select this project's `manifest.json`.
 
-## Android / Nightly testing
-
-- Open Firefox Nightly on Android.
-- Go to `Menu -> Add-ons -> myDealz Filter -> Options`.
-- Add your filter and exception terms there and save.
-- The options page also shows a `Hidden Deals` list for the active mydealz tab.
-
-## Firefox Android compatibility
-
-- Supported on Firefox for Android Nightly (`org.mozilla.fenix`) via the add-on `Options` page.
-- On Android, use `Menu -> Add-ons -> myDealz Filter -> Options` instead of the desktop popup button.
-
 ## What it does
 
 - Hides deals by title keywords
