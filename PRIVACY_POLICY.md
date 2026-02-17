@@ -1,6 +1,6 @@
 # Privacy Policy for myDealz Filter
 
-Version: 1.0.0  
+Version: 1.0.2  
 Effective date: 2026-02-14
 
 ## Overview
@@ -27,6 +27,10 @@ No extension data is sent to external servers.
 ## Third-party links
 
 The popup has optional external links. Their own privacy policies apply.
+
+## Unofficial project notice
+
+MyDealz Filter ist ein inoffizielles Open Source Hobbyprojekt, kein eigenes Angebot der MyDealz Webseite / Atolls Germany GmbH.
 
 ## Contact
 

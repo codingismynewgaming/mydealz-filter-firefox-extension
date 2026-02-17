@@ -144,6 +144,13 @@ body {
   color: var(--subtitle-color);
 }
 
+.version-label {
+  font-size: 11px;
+  color: var(--hint-color);
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
 .theme-toggle {
   border: 1px solid var(--form-border);
   background: var(--form-bg);
@@ -376,6 +383,21 @@ body {
   color: var(--subtitle-color);
   font-style: italic;
   font-size: 12px;
+}
+
+.legal-note {
+  margin-top: 2px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--hint-color);
+  text-align: center;
+}
+
+.settings-footer-note {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--form-border);
+  text-align: center;
 }
 
 /* Donate section styles */

@@ -1,7 +1,18 @@
 # Changelog
 
-## [1.0.1] - 2026-02-14
+## [Unreleased]
 
+## [1.0.2] - 2026-02-17
+
+### Added
+- Dokumentation zur `git`-basierten Versionskontrolle ergänzt (README und npm-Skript `git:status`).
+- Versionsnummer wird jetzt direkt im Popup angezeigt.
+- Hinweistext zur Inoffiziellen/Open-Source-Natur in Popup und Dokumentation ergänzt.
+
+### Changed
+- Auf `mydealz.de/deals/*` wird kein automatisches Ausblenden mehr ausgeführt, damit aus der Hidden-Deals-Liste geöffnete Deals sichtbar bleiben.
+
+## [1.0.1] - 2026-02-14
 ### Added
 - Manual light/dark mode toggle in popup header with persisted preference.
 - Chrome-portability manifest template (`manifest.chrome.json`) and documented browser-target workflow.

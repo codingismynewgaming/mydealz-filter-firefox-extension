@@ -10,6 +10,7 @@ const saveBtn = document.getElementById("saveBtn");
 const clearBtn = document.getElementById("clearBtn");
 const statusDiv = document.getElementById("status");
 const themeToggleBtn = document.getElementById("themeToggleBtn");
+const popupVersionLabel = document.getElementById("popupVersion");
 
 // Tab elements
 const settingsTabBtn = document.getElementById("settingsTabBtn");
@@ -40,6 +41,13 @@ function isMyDealzUrl(url) {
 
 function detectSystemTheme() {
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function displayExtensionVersion() {
+  const manifest = chrome.runtime.getManifest();
+  if (popupVersionLabel) {
+    popupVersionLabel.textContent = `Version ${manifest.version}`;
+  }
 }
 
 function updateThemeToggleLabel() {
@@ -390,6 +398,7 @@ hiddenPostsTabBtn.addEventListener('click', () => {
  * Initialize popup by loading saved filters and setting up tabs
  */
 async function init() {
+  displayExtensionVersion();
   await loadThemePreference();
 
   // Load the filter terms and exception terms

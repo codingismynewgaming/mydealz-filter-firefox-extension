@@ -15,12 +15,18 @@ let totalHiddenDealCount = 0;
 let totalHiddenDealKeys = new Set();
 let persistTotalsTimer = null;
 const TOTALS_PERSIST_DEBOUNCE_MS = 1500;
+const DEAL_DETAILS_PATH_PREFIX = "/deals/";
 
 /**
  * Debug logging helper
  */
 function log(...args) {
   if (DEBUG) console.log("[myDealz Filter]", ...args);
+}
+
+function isDealDetailsPage() {
+  const pathname = (window.location && window.location.pathname) || "";
+  return pathname.toLowerCase().startsWith(DEAL_DETAILS_PATH_PREFIX);
 }
 
 function normalizeForMatch(text) {
@@ -381,6 +387,15 @@ function clearProcessedMarkers() {
   });
 }
 
+function clearFilteredElements() {
+  document.querySelectorAll('[data-mydealz-filtered="true"]').forEach((el) => {
+    el.style.display = "";
+    el.removeAttribute("data-mydealz-filtered");
+    el.removeAttribute("data-filter-term");
+    el.removeAttribute("data-mydealz-counted");
+  });
+}
+
 /**
  * Hide postings that match filter terms but exclude those that also match exception terms
  * Optimized for performance with batch DOM operations
@@ -398,6 +413,17 @@ async function filterPostings(options = {}) {
     hiddenDealKeys.clear();
   }
 
+  // Do not hide anything on deal detail pages so users can open hidden deals
+  // from the popup list and view them normally.
+  if (isDealDetailsPage()) {
+    hiddenCount = 0;
+    hiddenDeals = [];
+    hiddenDealKeys.clear();
+    clearFilteredElements();
+    updateBadge(0);
+    return;
+  }
+
   const { filterTerms, exceptionTerms } = await getFilterTerms();
 
   // If no filter terms, show everything
@@ -407,12 +433,7 @@ async function filterPostings(options = {}) {
     hiddenDealKeys.clear();
 
     // Show all previously hidden elements
-    document.querySelectorAll('[data-mydealz-filtered="true"]').forEach(el => {
-      el.style.display = "";
-      el.removeAttribute("data-mydealz-filtered");
-      el.removeAttribute("data-filter-term"); // Remove filter term attribute
-      el.removeAttribute("data-mydealz-counted"); // Remove counted attribute as well
-    });
+    clearFilteredElements();
     updateBadge(0);
     return;
   }
@@ -505,6 +526,8 @@ async function updateBadge(currentCount, newHiddenCount = 0) {
  * More efficient observer that targets specific areas
  */
 function observeChanges() {
+  if (isDealDetailsPage()) return;
+
   // Flag to prevent multiple simultaneous filter operations
   let isFiltering = false;
   
@@ -577,12 +600,7 @@ window.addEventListener('beforeunload', () => {
   updateBadge(0); // This will update the current count but preserve the total
 
   // Also reset any hidden elements to visible state
-  document.querySelectorAll('[data-mydealz-filtered="true"]').forEach(el => {
-    el.style.display = "";
-    el.removeAttribute("data-mydealz-filtered");
-    el.removeAttribute("data-filter-term");
-    el.removeAttribute("data-mydealz-counted"); // Remove the counted attribute as well
-  });
+  clearFilteredElements();
 });
 
 // Initialize and start the filter
