@@ -2,21 +2,90 @@
 
 **Last Updated:** 2026-02-23
 **Project Key:** MD (Mydealz Extension)
-**Current Version:** v1.0.4 (In Development)
+**Current Version:** v1.0.3 (Sprint 3 - Planned)
+**Next Release:** v1.0.3 (Target: 2026-03-24)
 **Repository:** https://github.com/codingismynewgaming/mydealz-filter-firefox-extension
 
 ---
 
-## Current Status: Active Development
+## Current Status: Sprint 3 Planning Complete ✅
 
-### GitHub Repository Status
+Sprint 3 planning is complete. All user stories created, epics linked, and sprint scheduled. Ready to start development on Feb 24, 2026.
+
+---
+
+## Sprint 3 - v1.0.3 Release (2026-02-24 to 2026-03-24)
+
+### Sprint Goal
+**Release v1.0.3 with UI/UX improvements, filter management features (export/import), statistics tab, and critical bug fixes**
+
+### Sprint Metrics
+
+| Metric | Value |
+|--------|-------|
+| **Total Issues** | 12 (3 Epics + 9 Stories) |
+| **Total Story Points** | 31 |
+| **Sprint Duration** | 29 days |
+| **Status** | 🟡 Planned (Ready to Start) |
+
+### Epics in Sprint 3
+
+| Epic Key | Epic Name | Stories | Story Points | Status |
+|----------|-----------|---------|--------------|--------|
+| MD-54 | v1.0.3 UI/UX Improvements | 3 | 9 | 🟡 To Do |
+| MD-55 | v1.0.3 Filter Management Features | 4 | 14 | 🟡 To Do |
+| MD-56 | v1.0.3 Bug Fixes | 2 | 8 | 🟡 To Do |
+
+### User Stories in Sprint 3
+
+| Key | Summary | Epic | Points | Priority |
+|-----|---------|------|--------|----------|
+| MD-57 | Remove Clear All button from settings | MD-54 | 1 | Low |
+| MD-58 | Add statistics tab showing filter term effectiveness ranking | MD-54 | 5 | High |
+| MD-59 | Make popup auto-grow when there are many hidden deals | MD-54 | 3 | Medium |
+| MD-60 | Fix badge counter reset when leaving/returning to tab | MD-56 | 3 | Critical |
+| MD-61 | Verify and fix Firefox Sync for filter terms | MD-56 | 5 | Critical |
+| MD-62 | Check for duplicate keywords and notify user | MD-55 | 3 | Medium |
+| MD-63 | Make filter terms input field auto-grow with content | MD-55 | 3 | Medium |
+| MD-64 | Export filter terms as JSON file | MD-55 | 3 | High |
+| MD-65 | Import filter terms from JSON file | MD-55 | 5 | High |
+
+### Sprint Schedule
+
+| Week | Dates | Focus | Key Deliverables |
+|------|-------|-------|------------------|
+| **Week 1** | Feb 24 - Mar 02 | Foundation & Critical Bugs | MD-60, MD-61, MD-57 |
+| **Week 2** | Mar 03 - Mar 09 | Filter Management Core | MD-62, MD-64, MD-65 (start) |
+| **Week 3** | Mar 10 - Mar 16 | UI/UX Enhancements | MD-65, MD-63, MD-58 |
+| **Week 4** | Mar 17 - Mar 24 | Polish & Release | MD-59, Testing, **Release v1.0.3** 🚀 |
+
+### Key Features Coming in v1.0.3
+
+#### 🎨 UI/UX Improvements
+- **Statistics Tab:** See which filter terms hide the most deals (ranked top to bottom)
+- **Auto-growing Popup:** Popup expands to show more hidden deals without scrolling
+- **Cleaner Settings:** Remove "Clear All" button to prevent accidental deletions
+
+#### 📁 Filter Management
+- **Export Filters:** Backup your filter configuration as JSON
+- **Import Filters:** Restore or share filter configurations
+- **Auto-growing Input:** Filter terms field expands with content
+- **Duplicate Detection:** Get notified when adding duplicate keywords
+
+#### 🐛 Bug Fixes
+- **Badge Counter:** Persists correctly when switching tabs
+- **Firefox Sync:** Verified and fixed for cross-device synchronization
+
+---
+
+## GitHub Repository Status
 
 | Property | Value |
 |----------|-------|
 | **Repository URL** | https://github.com/codingismynewgaming/mydealz-filter-firefox-extension |
 | **Default Branch** | `master` |
 | **Remote** | `origin` (configured) |
-| **Latest Commit** | `3912542` - chore(release): add disclaimer and bump version to 1.0.3 |
+| **Latest Commit** | `a8bca07` - docs: add STATUS.md with GitHub-Jira integration instructions |
 | **Status** | ✅ Connected to GitHub |
 
 ---
@@ -72,7 +141,7 @@ To reference Jira issues in commits:
 
 ## Jira Project Overview
 
-### Epics
+### All Epics
 
 | Epic Key | Epic Name | Status | Issues |
 |----------|-----------|--------|--------|
@@ -80,23 +149,20 @@ To reference Jira issues in commits:
 | MD-13 | User Interface & Experience | ✅ Complete | 6 |
 | MD-14 | Platform Support & Compatibility | ✅ Complete | 6 |
 | MD-15 | Maintenance & Documentation | ✅ Complete | 6 |
-| MD-40 | v1.0.4 Future Enhancements | 🟡 In Progress | 6 |
-
-### Recent Activity
-
-- **Sprint 1:** ✅ Complete (v1.0.0-v1.0.2 Retrospective)
-- **Sprint 2:** ✅ Complete (Jira Integration & PRD)
-- **Sprint 3:** 🟡 Planning (v1.0.3 completion & v1.0.4 start)
+| MD-40 | v1.0.4 Future Enhancements | 🟡 Backlog | 6 |
+| **MD-54** | **v1.0.3 UI/UX Improvements** | 🟡 Sprint 3 | 3 |
+| **MD-55** | **v1.0.3 Filter Management Features** | 🟡 Sprint 3 | 4 |
+| **MD-56** | **v1.0.3 Bug Fixes** | 🟡 Sprint 3 | 2 |
 
 ### Version Roadmap
 
 | Version | Status | Release Date | Notes |
 |---------|--------|--------------|-------|
-| v1.0.0 | ✅ Released | 2026-02-17 | Initial release |
-| v1.0.1 | ✅ Released | 2026-02-18 | Bug fixes |
-| v1.0.2 | ✅ Released | 2026-02-19 | Android support |
-| v1.0.3 | ✅ Released | 2026-02-23 | Release notes fix |
-| v1.0.4 | 🟡 In Development | TBA | Future enhancements |
+| v1.0.0 | ✅ Released | 2026-02-11 | Initial release |
+| v1.0.1 | ✅ Released | 2026-02-14 | Bug fixes, theme toggle |
+| v1.0.2 | ✅ Released | 2026-02-17 | Android support, options page |
+| v1.0.3 | 🟡 In Development | 2026-03-24 (Target) | Sprint 3 - Current |
+| v1.0.4 | 🟡 Backlog | TBA | Future enhancements (MD-40) |
 
 ---
 
@@ -125,21 +191,21 @@ web-ext run
 
 ```bash
 # Create feature branch
-git checkout -b feature/MD-41-export-import
+git checkout -b feature/MD-60-badge-fix
 
 # Commit with Jira reference
-git commit -m "feat: add export/import functionality MD-41"
+git commit -m "fix(badge): persist counter across tab switches MD-60"
 
 # Push to GitHub
-git push origin feature/MD-41-export-import
+git push origin feature/MD-60-badge-fix
 ```
 
 ### Jira Issue Reference Format
 
 When committing code, reference Jira issues:
 - **Format:** `MD-XX` in commit messages
-- **Example:** `feat(settings): add export button MD-41`
-- **Smart Commits:** `MD-41 #comment Added export feature #transition In Progress`
+- **Example:** `feat(settings): add export button MD-64`
+- **Smart Commits:** `MD-60 #comment Fixed badge persistence #transition In Progress`
 
 ---
 
@@ -154,6 +220,7 @@ When committing code, reference Jira issues:
 | **AMO Listing** | `/docs/AMO_LISTING.md` | Firefox Add-on store listing |
 | **AMO Submission** | `/docs/AMO_SUBMISSION.md` | Submission guide |
 | **CHANGELOG** | `/docs/CHANGELOG.md` | Version history |
+| **Sprint 3 Plan** | `/docs/SPRINT-3-PLAN.md` | Detailed sprint plan |
 | **STATUS** | `/docs/STATUS.md` | This document |
 
 ### Source Code Structure
@@ -181,24 +248,24 @@ mydealz-filter-firefox-extension/
 
 ## Next Steps
 
-### Immediate (This Week)
+### Immediate (This Week - Sprint 3 Week 1)
 
-1. ⚠️ **Complete GitHub-Jira Integration** (this document's purpose)
-2. 📝 Backlog grooming for v1.0.4 features
-3. 🎯 Sprint 3 planning
-4. 🔨 Begin MD-41 (Export/Import filter settings)
+1. 🚀 **Start Sprint 3** (Feb 24)
+2. 🐛 **Fix badge counter reset** (MD-60) - Critical
+3. 🔧 **Verify Firefox Sync** (MD-61) - Critical
+4. 🗑️ **Remove Clear All button** (MD-57) - Quick win
 
 ### Short Term (Next 2 Weeks)
 
-- Implement MD-41: Export/Import filter settings (3pts)
-- Implement MD-42: Pre-defined filter presets (5pts)
-- Continue v1.0.4 development
+- Complete critical bug fixes (MD-60, MD-61)
+- Implement duplicate detection (MD-62)
+- Build export/import functionality (MD-64, MD-65)
 
-### Long Term (Next Month)
+### Long Term (Sprint 3 Completion)
 
-- Complete v1.0.4 feature set
-- Prepare AMO submission for v1.0.4
-- User testing and feedback collection
+- Complete all 9 user stories
+- Test on Firefox Desktop and Android
+- Release v1.0.3 to AMO (March 24, 2026)
 
 ---
 
@@ -213,12 +280,15 @@ mydealz-filter-firefox-extension/
 
 ## Quick Links
 
-- **Jira Project:** https://jan109.atlassian.net/jira/software/projects/MD
+- **Jira Project:** https://berlin-mitte-institut.atlassian.net/jira/software/projects/MD
 - **GitHub Repo:** https://github.com/codingismynewgaming/mydealz-filter-firefox-extension
 - **GitHub Apps:** https://github.com/apps/github-for-jira
-- **Jira GitHub Integration:** https://support.atlassian.com/jira-software-cloud/docs/reference-issues-in-your-development-work/
+- **Jira GitHub Integration Docs:** https://support.atlassian.com/jira-software-cloud/docs/reference-issues-in-your-development-work/
+- **Sprint 3 Plan:** `/docs/SPRINT-3-PLAN.md`
 
 ---
 
-**Status Report Generated:** 2026-02-23
-**Next Review:** After GitHub-Jira integration complete
+**Status Report Generated:** 2026-02-23  
+**Sprint 3 Start:** 2026-02-24  
+**Sprint 3 End:** 2026-03-24  
+**Next Review:** After Sprint 3 Week 1 completion
