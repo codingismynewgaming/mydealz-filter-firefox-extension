@@ -1,16 +1,71 @@
-# Project Status - myDealz Filter Firefox Extension
+# Project Status - mydealz.de Filter Firefox Extension
 
 **Last Updated:** 2026-02-23
-**Project Key:** MD (Mydealz Extension)
+**Project Key:** MD (mydealz.de Extension)
 **Current Version:** v1.0.3 (Sprint 3 - Planned)
 **Next Release:** v1.0.3 (Target: 2026-03-24)
 **Repository:** https://github.com/codingismynewgaming/mydealz-filter-firefox-extension
 
 ---
 
-## Current Status: Sprint 3 Planning Complete ✅
+## Current Status: Sprint 3 Execution Started
 
-Sprint 3 planning is complete. All user stories created, epics linked, and sprint scheduled. Ready to start development on Feb 24, 2026.
+Sprint 3 implementation is in progress. MD-60 and MD-61 are implemented and in Jira testing, and MD-57 has been implemented.
+
+### Execution Log (2026-02-23)
+
+- MD-60 moved to `In Progress` in Jira.
+- Implemented badge re-sync in `src/background.js` to recover hidden-deal counts on tab activation and page refresh.
+- Added bounded retry logic when content script is temporarily unavailable after reload.
+- MD-60 moved to `Testing` in Jira after implementation and lint validation.
+- MD-61 moved to `In Progress` in Jira.
+- Added popup top-right sync status badge (`Sync: On` / `Sync: Error`) in `src/popup.html`, `src/popup.css`, and `src/popup.js`.
+- Added graceful sync error handling and local fallback for filter-term storage in `src/popup.js`.
+- MD-61 moved to `Testing` in Jira after implementation and lint validation.
+- MD-57 moved to `In Progress` in Jira.
+- Removed `Clear All` from popup and options settings in `src/popup.html`, `src/popup.js`, `src/options.html`, and `src/options.js`.
+- MD-57 moved to `Testing` in Jira after implementation and lint validation.
+- MD-64 moved to `In Progress` in Jira.
+- Added JSON export flow with metadata in popup/options (`Export Filters`).
+- MD-64 moved to `Testing` in Jira after implementation and lint validation.
+- MD-65 moved to `In Progress` in Jira.
+- Added JSON import flow in popup/options with validation, merge, duplicate skip, and summary feedback (`Import Filters`).
+- MD-65 moved to `Testing` in Jira after implementation and lint validation.
+- MD-62 moved to `In Progress` in Jira.
+- Added duplicate detection on save (case-insensitive + diacritics-insensitive) in popup/options.
+- Duplicate terms are skipped, listed in status message, and highlighted in affected textarea(s).
+- MD-62 moved to `Testing` in Jira after implementation and lint validation.
+- MD-63 moved to `In Progress` in Jira.
+- Added auto-grow behavior for `filterTerms` input in popup/options with 300px max-height + overflow handling.
+- MD-63 moved to `Testing` in Jira after implementation and lint validation.
+- MD-59 moved to `In Progress` in Jira.
+- Added popup auto-grow behavior for hidden deals list with dynamic sizing, max-height enforcement, and smooth transitions.
+- MD-59 moved to `Testing` in Jira after implementation and lint validation.
+- MD-58 moved to `In Progress` in Jira.
+- Added Statistics tab in popup with ranked per-filter hidden counts and empty states.
+- Added persistent cumulative per-term stats in `chrome.storage.local` via content script (`hiddenCountsByTerm`).
+- MD-58 moved to `Testing` in Jira after implementation and lint validation.
+- Added consolidated manual verification checklist: `docs/SPRINT-3-TEST-CHECKLIST.md`.
+- Added Confluence rollout templates under `docs/confluence/`.
+- Created Jira tasks for Confluence rollout: MD-66, MD-67, MD-68, MD-69, MD-70, MD-71.
+- MD-59 re-opened for follow-up popup sizing fix and moved back to `Testing`.
+- Created new Jira tickets: MD-72 (rename to `mydealz.de`) and MD-73 (new Info tab).
+- MD-72 and MD-73 implemented and moved to `Testing`.
+- **Follow-up fixes (2026-02-23):**
+  - Improved duplicate term feedback message with warning icon for better visibility.
+  - Increased popup default height from 360px to 720px (doubled) for better UX.
+  - Made options page textareas editable only on click/focus (prevents accidental edits).
+- Validation: `npm run lint:amo` passed with 0 errors, 0 warnings, 0 notices.
+- **Confluence pages created (MD-66 to MD-71):**
+  - ✅ MD-66: Project Home page created (`docs/confluence/01_PROJECT_HOME.md`)
+  - ✅ MD-67: Roadmap & Releases page created (`docs/confluence/02_ROADMAP_RELEASES.md`)
+  - ✅ MD-68: Sprint Hub page created (`docs/confluence/03_SPRINT_HUB.md`)
+  - ✅ MD-69: Sprint 3 Review page created (`docs/confluence/04_SPRINT_3_REVIEW.md`)
+  - ✅ MD-70: Sprint 3 Test Report page created (`docs/confluence/05_SPRINT_3_TEST_REPORT.md`)
+  - ✅ MD-71: ADR Log created with 4 architecture decisions (`docs/confluence/06_ADR_LOG.md`)
+  - All Jira tickets updated with implementation details
+  - Next: Upload to Confluence and add Jira macros
+- Next: manual browser verification and close all tickets currently in `Testing`.
 
 ---
 
@@ -26,7 +81,7 @@ Sprint 3 planning is complete. All user stories created, epics linked, and sprin
 | **Total Issues** | 12 (3 Epics + 9 Stories) |
 | **Total Story Points** | 31 |
 | **Sprint Duration** | 29 days |
-| **Status** | 🟡 Planned (Ready to Start) |
+| **Status** | 🟡 In Progress |
 
 ### Epics in Sprint 3
 
@@ -96,7 +151,7 @@ Sprint 3 planning is complete. All user stories created, epics linked, and sprin
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| **Jira Project** | ✅ Active | MD - Mydealz Extension |
+| **Jira Project** | ✅ Active | MD - mydealz.de Extension |
 | **GitHub Repository** | ✅ Hosted | Private repository on GitHub |
 | **GitHub-Jira Link** | ⚠️ Pending | Requires GitHub app installation |
 | **Issue References** | ⚠️ Pending | Smart commits not yet active |
@@ -123,7 +178,7 @@ To enable Jira to see and reference the GitHub repository, follow these steps:
 
 #### Step 3: Verify Connection
 
-1. In Jira, navigate to your project: **MD - Mydealz Extension**
+1. In Jira, navigate to your project: **MD - mydealz.de Extension**
 2. Go to **Project Settings** → **Git integrations**
 3. Verify `mydealz-filter-firefox-extension` appears in connected repos
 4. Check that commits and branches are syncing
@@ -274,7 +329,7 @@ mydealz-filter-firefox-extension/
 | Role | Name | Jira User |
 |------|------|-----------|
 | **Developer** | Jan Kühn | jan.kuehn@ (authenticated) |
-| **Project** | Mydealz Extension | MD |
+| **Project** | mydealz.de Extension | MD |
 
 ---
 
@@ -292,3 +347,15 @@ mydealz-filter-firefox-extension/
 **Sprint 3 Start:** 2026-02-24  
 **Sprint 3 End:** 2026-03-24  
 **Next Review:** After Sprint 3 Week 1 completion
+
+## Session Checkpoint (2026-02-23)
+
+- Follow-up popup sizing fix completed and tracked in Jira (`MD-59` -> `Testing`).
+- Naming update to `mydealz.de` completed and tracked in Jira (`MD-72` -> `Testing`).
+- New popup `Info` tab completed and tracked in Jira (`MD-73` -> `Testing`).
+- Updated settings UX: both `Filter Terms` and `Exception Terms` are now locked until clicked, with a clearer locked visual state.
+- Fixed Settings tab rendering: keyword textareas now auto-grow after tab activation so terms are fully visible immediately.
+- Validation successful: `npm run lint:amo` (0 errors, 0 warnings, 0 notices).
+- Session paused. Resume from current `Testing` tickets in next session.
+
+
