@@ -64,7 +64,15 @@ Sprint 3 implementation is in progress. MD-60 and MD-61 are implemented and in J
   - ✅ MD-70: Sprint 3 Test Report page created (`docs/confluence/05_SPRINT_3_TEST_REPORT.md`)
   - ✅ MD-71: ADR Log created with 4 architecture decisions (`docs/confluence/06_ADR_LOG.md`)
   - All Jira tickets updated with implementation details
-  - Next: Upload to Confluence and add Jira macros
+  - **LIVE on Confluence (Space MDE):**
+    - 🏠 Project Home: https://berlin-mitte-institut.atlassian.net/wiki/spaces/MDE/pages/983292
+    - 🗺️ Roadmap & Releases: https://berlin-mitte-institut.atlassian.net/wiki/spaces/MDE/pages/950299
+    - 🏃 Sprint Hub: https://berlin-mitte-institut.atlassian.net/wiki/spaces/MDE/pages/950318
+    - 📋 Sprint 3 Review: https://berlin-mitte-institut.atlassian.net/wiki/spaces/MDE/pages/983336
+    - ✅ Sprint 3 Test Report: https://berlin-mitte-institut.atlassian.net/wiki/spaces/MDE/pages/1015879
+    - 📐 ADR Log: https://berlin-mitte-institut.atlassian.net/wiki/spaces/MDE/pages/950341
+  - **Space Homepage:** Updated with full project content
+  - **Space URL:** https://berlin-mitte-institut.atlassian.net/wiki/spaces/MDE/overview
 - Next: manual browser verification and close all tickets currently in `Testing`.
 
 ---
