@@ -1,22 +1,22 @@
-# myDealz Filter
+# mydealz.de Filter
 
 Version: 1.0.3
 
-myDealz Filter hides unwanted deals on `mydealz.de` based on your keywords.
+mydealz.de Filter hides unwanted deals on `mydealz.de` based on your keywords.
 
 ## Hinweis / Disclaimer
 
-Dieses Projekt ist eine inoffizielle Browser-Erweiterung und steht in keiner Verbindung zu MyDealz, Pepper.com oder deren Partnern.
-Die Erweiterung arbeitet ausschließlich clientseitig und passt lediglich die Darstellung der MyDealz-Website im Browser des Nutzers an.
+Dieses Projekt ist eine inoffizielle Browser-Erweiterung und steht in keiner Verbindung zu mydealz.de, Pepper.com oder deren Partnern.
+Die Erweiterung arbeitet ausschließlich clientseitig und passt lediglich die Darstellung der mydealz.de-Website im Browser des Nutzers an.
 
-- Es werden keine Inhalte von MyDealz gespeichert oder weitergegeben.
+- Es werden keine Inhalte von mydealz.de gespeichert oder weitergegeben.
 - Es werden keine technischen Schutzmaßnahmen umgangen.
 - Es werden keine Affiliate-Links verändert oder ersetzt.
 - Es findet keine Datenübertragung an den Entwickler oder Dritte statt.
 
-Alle Marken- und Produktnamen (einschließlich „MyDealz“) sind Eigentum der jeweiligen Rechteinhaber und werden ausschließlich zur eindeutigen Beschreibung der Kompatibilität verwendet.
+Alle Marken- und Produktnamen (einschließlich „mydealz.de“) sind Eigentum der jeweiligen Rechteinhaber und werden ausschließlich zur eindeutigen Beschreibung der Kompatibilität verwendet.
 Die Nutzung dieser Erweiterung erfolgt auf eigene Verantwortung.
-Es liegt in der Verantwortung des Nutzers, die Nutzungsbedingungen von MyDealz zu beachten.
+Es liegt in der Verantwortung des Nutzers, die Nutzungsbedingungen von mydealz.de zu beachten.
 
 ## Install
 
@@ -46,3 +46,6 @@ Or local install from the unsigned Zip in Release:
 - GitHub: https://github.com/codingismynewgaming
 - Buy me a coffee: https://buymeacoffee.com/codingiymynewgaming
 - PayPal: https://www.paypal.com/donate/?hosted_button_id=ZXHJFTUW9NQK8
+
+
+

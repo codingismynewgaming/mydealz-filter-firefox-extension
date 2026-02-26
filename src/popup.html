@@ -3,15 +3,18 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>myDealz Filter</title>
+    <title>mydealz.de Filter</title>
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
     <div class="container">
       <div class="header">
         <div class="header-row">
-          <h1>myDealz Filter</h1>
-          <button id="themeToggleBtn" class="theme-toggle" type="button" title="Toggle theme">Dark</button>
+          <h1>mydealz.de Filter</h1>
+          <div class="header-controls">
+            <span id="syncStatusBadge" class="sync-status checking" aria-live="polite">Sync: ...</span>
+            <button id="themeToggleBtn" class="theme-toggle" type="button" title="Toggle theme">Dark</button>
+          </div>
         </div>
         <p class="subtitle">Hide postings by keywords</p>
       </div>
@@ -19,7 +22,9 @@
       <!-- Tab Navigation -->
       <div class="tab-nav">
         <button id="hiddenPostsTabBtn" class="tab-btn active">Hidden Posts (<span id="hiddenCount">0</span>)</button>
+        <button id="statisticsTabBtn" class="tab-btn">Statistics</button>
         <button id="settingsTabBtn" class="tab-btn">Settings</button>
+        <button id="infoTabBtn" class="tab-btn">Info</button>
       </div>
 
       <!-- Settings Tab Content -->
@@ -32,7 +37,7 @@
             rows="3"
           ></textarea>
           <p class="hint">
-            Enter keywords separated by commas. Postings with these terms in the
+            Click in this field to unlock editing. Enter keywords separated by commas. Postings with these terms in the
             title will be hidden (unless they also contain an exception term).
           </p>
         </div>
@@ -45,18 +50,23 @@
             rows="3"
           ></textarea>
           <p class="hint">
-            Enter keywords separated by commas. Postings containing these terms will NOT be hidden,
+            Click in this field to unlock editing. Enter keywords separated by commas. Postings containing these terms will NOT be hidden,
             even if they also contain filter terms. Example: If you filter 'Apple' but add 'Android' 
             as an exception, a post titled 'Apple and Android phone deals' won't be hidden.
           </p>
         </div>
 
+        <div id="status" class="status"></div>
+
         <div class="button-group">
           <button id="saveBtn" class="btn btn-primary">Save Filters</button>
-          <button id="clearBtn" class="btn btn-secondary">Clear All</button>
         </div>
 
-        <div id="status" class="status"></div>
+        <div class="transfer-group">
+          <button id="exportBtn" class="btn btn-secondary" type="button">Export Filters</button>
+          <button id="importBtn" class="btn btn-secondary" type="button">Import Filters</button>
+          <input id="importFileInput" class="import-file-input" type="file" accept=".json,application/json" />
+        </div>
 
         <div class="info-section">
           <h3>How to use:</h3>
@@ -68,7 +78,26 @@
           </ol>
         </div>
 
-        <!-- Donate section -->
+      </div>
+
+      <!-- Hidden Posts Tab Content -->
+      <div id="hiddenPostsTab" class="tab-content active">
+        <div id="hiddenDealsList" class="deals-list">
+          <p id="noHiddenDeals">No deals have been hidden on this page.</p>
+          <!-- Hidden deals will be populated here -->
+        </div>
+      </div>
+
+      <!-- Statistics Tab Content -->
+      <div id="statisticsTab" class="tab-content">
+        <div id="statisticsList" class="statistics-list"></div>
+        <p id="noStatisticsData" class="no-statistics-data">
+          No statistics yet. Browse mydealz.de to build filter insights.
+        </p>
+      </div>
+
+      <!-- Info Tab Content -->
+      <div id="infoTab" class="tab-content">
         <div class="donate-section">
           <p class="donate-text">Enjoying this extension? Instead of sending me your Bitcoins, just buy me a coffee or send a donation via PayPal.</p>
           <div class="donate-buttons">
@@ -84,36 +113,28 @@
             <p class="legal-note"><strong>Hinweis / Disclaimer</strong></p>
             <p class="legal-note">
               Dieses Projekt ist eine inoffizielle Browser-Erweiterung und steht in keiner Verbindung zu
-              MyDealz, Pepper.com oder deren Partnern.
+              mydealz.de, Pepper.com oder deren Partnern.
             </p>
             <p class="legal-note">
               Die Erweiterung arbeitet ausschließlich clientseitig und passt lediglich die Darstellung der
-              MyDealz-Website im Browser des Nutzers an.
+              mydealz.de-Website im Browser des Nutzers an.
             </p>
             <ul class="legal-list">
-              <li>Es werden keine Inhalte von MyDealz gespeichert oder weitergegeben.</li>
+              <li>Es werden keine Inhalte von mydealz.de gespeichert oder weitergegeben.</li>
               <li>Es werden keine technischen Schutzmaßnahmen umgangen.</li>
               <li>Es werden keine Affiliate-Links verändert oder ersetzt.</li>
               <li>Es findet keine Datenübertragung an den Entwickler oder Dritte statt.</li>
             </ul>
             <p class="legal-note">
-              Alle Marken- und Produktnamen (einschließlich „MyDealz“) sind Eigentum der jeweiligen
+              Alle Marken- und Produktnamen (einschließlich „mydealz.de“) sind Eigentum der jeweiligen
               Rechteinhaber und werden ausschließlich zur eindeutigen Beschreibung der Kompatibilität
               verwendet.
             </p>
             <p class="legal-note">Die Nutzung dieser Erweiterung erfolgt auf eigene Verantwortung.</p>
             <p class="legal-note">
-              Es liegt in der Verantwortung des Nutzers, die Nutzungsbedingungen von MyDealz zu beachten.
+              Es liegt in der Verantwortung des Nutzers, die Nutzungsbedingungen von mydealz.de zu beachten.
             </p>
           </div>
-        </div>
-      </div>
-
-      <!-- Hidden Posts Tab Content -->
-      <div id="hiddenPostsTab" class="tab-content active">
-        <div id="hiddenDealsList" class="deals-list">
-          <p id="noHiddenDeals">No deals have been hidden on this page.</p>
-          <!-- Hidden deals will be populated here -->
         </div>
       </div>
     </div>
@@ -121,3 +142,4 @@
     <script src="popup.js"></script>
   </body>
 </html>
+

@@ -6,8 +6,10 @@
 // Store hidden deals information by tab ID
 const hiddenDealsInfo = new Map();
 const MYDEALZ_BASE_HOST = "mydealz.de";
+const BADGE_RESYNC_MAX_ATTEMPTS = 4;
+const BADGE_RESYNC_RETRY_DELAY_MS = 350;
 
-function isMyDealzUrl(url) {
+function isMydealzDeUrl(url) {
   if (!url) return false;
   try {
     const hostname = new URL(url).hostname.toLowerCase();
@@ -17,10 +19,10 @@ function isMyDealzUrl(url) {
   }
 }
 
-function setTabActionState(tabId, isMyDealz, hiddenCount = 0) {
+function setTabActionState(tabId, isMydealzDe, hiddenCount = 0) {
   if (tabId === undefined || tabId === null) return;
 
-  if (isMyDealz) {
+  if (isMydealzDe) {
     chrome.action.setBadgeText({
       tabId,
       text: hiddenCount > 0 ? hiddenCount.toString() : "",
@@ -47,17 +49,78 @@ function setTabActionState(tabId, isMyDealz, hiddenCount = 0) {
   });
 }
 
+function requestHiddenDealsFromTab(tabId) {
+  return new Promise((resolve, reject) => {
+    chrome.tabs.sendMessage(tabId, { type: "getHiddenDeals" }, (response) => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+
+      const hiddenDeals = Array.isArray(response?.hiddenDeals) ? response.hiddenDeals : [];
+      resolve(hiddenDeals);
+    });
+  });
+}
+
+async function syncTabActionState(tabId, attempt = 0) {
+  if (tabId === undefined || tabId === null) return;
+
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    const isMydealzDeTab = isMydealzDeUrl(tab.url);
+
+    if (!isMydealzDeTab) {
+      hiddenDealsInfo.delete(tabId);
+      setTabActionState(tabId, false, 0);
+      return;
+    }
+
+    try {
+      const deals = await requestHiddenDealsFromTab(tabId);
+      hiddenDealsInfo.set(tabId, deals);
+      setTabActionState(tabId, true, deals.length);
+    } catch (error) {
+      if (attempt < BADGE_RESYNC_MAX_ATTEMPTS) {
+        setTimeout(() => {
+          syncTabActionState(tabId, attempt + 1);
+        }, BADGE_RESYNC_RETRY_DELAY_MS);
+        return;
+      }
+
+      // Fallback to last known per-tab state when content script is not reachable.
+      const cachedDeals = hiddenDealsInfo.get(tabId) || [];
+      setTabActionState(tabId, true, cachedDeals.length);
+    }
+  } catch (error) {
+    console.error("Error syncing tab action state:", error);
+  }
+}
+
+async function syncAllTabsActionState() {
+  try {
+    const tabs = await chrome.tabs.query({});
+    for (const tab of tabs) {
+      if (tab.id === undefined) continue;
+      syncTabActionState(tab.id);
+    }
+  } catch (error) {
+    console.error("Error syncing all tab action states:", error);
+  }
+}
+
 // Listen for messages from content script
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.type === "updateBadge") {
     if (sender.tab && sender.tab.id !== undefined) {
-      const isMyDealzTab = isMyDealzUrl(sender.tab.url);
-      if (isMyDealzTab) {
-        hiddenDealsInfo.set(sender.tab.id, request.hiddenDeals || []);
+      const isMydealzDeTab = isMydealzDeUrl(sender.tab.url);
+      if (isMydealzDeTab) {
+        hiddenDealsInfo.set(sender.tab.id, Array.isArray(request.hiddenDeals) ? request.hiddenDeals : []);
       } else {
         hiddenDealsInfo.delete(sender.tab.id);
       }
-      setTabActionState(sender.tab.id, isMyDealzTab, request.count || 0);
+      const safeCount = Number.isInteger(request.count) ? request.count : 0;
+      setTabActionState(sender.tab.id, isMydealzDeTab, safeCount);
     }
     sendResponse({ status: "badge updated" });
   } else if (request.type === "getHiddenDeals") {
@@ -73,25 +136,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
 // Handle tab activation to update badge and icon based on current website
 chrome.tabs.onActivated.addListener(async (activeInfo) => {
-  try {
-    const tab = await chrome.tabs.get(activeInfo.tabId);
-    const isMyDealzTab = isMyDealzUrl(tab.url);
-    const deals = isMyDealzTab ? hiddenDealsInfo.get(tab.id) || [] : [];
-    setTabActionState(tab.id, isMyDealzTab, deals.length);
-  } catch (error) {
-    console.error("Error updating badge on tab activation:", error);
-  }
+  syncTabActionState(activeInfo.tabId);
 });
 
 // Handle tab updates to update badge and icon when URL changes
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
   if (changeInfo.status === "complete") {
-    const isMyDealzTab = isMyDealzUrl(tab.url);
-    if (!isMyDealzTab) {
-      hiddenDealsInfo.delete(tabId);
-    }
-    const deals = isMyDealzTab ? hiddenDealsInfo.get(tabId) || [] : [];
-    setTabActionState(tabId, isMyDealzTab, deals.length);
+    syncTabActionState(tabId);
   }
 });
 
@@ -100,15 +151,21 @@ chrome.runtime.onInstalled.addListener(() => {
   // Set default badge to grey with no text
   chrome.action.setBadgeText({ text: "" });
   chrome.action.setBadgeBackgroundColor({ color: "#808080" }); // Grey color
+  syncAllTabsActionState();
 });
 
 // Ensure badge is cleared on startup
 chrome.runtime.onStartup.addListener(() => {
   chrome.action.setBadgeText({ text: "" });
   chrome.action.setBadgeBackgroundColor({ color: "#808080" }); // Grey color
+  syncAllTabsActionState();
 });
 
 // Clean up hidden deals info when tab is closed
 chrome.tabs.onRemoved.addListener((tabId) => {
   hiddenDealsInfo.delete(tabId);
 });
+
+
+
+

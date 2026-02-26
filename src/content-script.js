@@ -1,5 +1,5 @@
 /**
- * Content Script for myDealz Filter - Optimized for mydealz.de structure
+ * Content Script for mydealz.de Filter - Optimized for mydealz.de structure
  * This script runs on mydealz.de pages and filters postings based on keywords
  */
 
@@ -13,6 +13,7 @@ const hiddenDealKeys = new Set(); // Prevent duplicate hidden deals within one p
 // Store the total count of hidden deals across sessions
 let totalHiddenDealCount = 0;
 let totalHiddenDealKeys = new Set();
+let hiddenCountsByTerm = {};
 let persistTotalsTimer = null;
 const TOTALS_PERSIST_DEBOUNCE_MS = 1500;
 const DEAL_DETAILS_PATH_PREFIX = "/deals/";
@@ -21,7 +22,7 @@ const DEAL_DETAILS_PATH_PREFIX = "/deals/";
  * Debug logging helper
  */
 function log(...args) {
-  if (DEBUG) console.log("[myDealz Filter]", ...args);
+  if (DEBUG) console.log("[mydealz.de Filter]", ...args);
 }
 
 function isDealDetailsPage() {
@@ -103,6 +104,7 @@ function schedulePersistTotals() {
       {
         totalHiddenDealCount,
         totalHiddenDealKeys: Array.from(totalHiddenDealKeys),
+        hiddenCountsByTerm,
       },
       () => {
         if (chrome.runtime.lastError) {
@@ -118,9 +120,15 @@ function schedulePersistTotals() {
  */
 async function loadTotalHiddenDealState() {
   return new Promise((resolve) => {
-    chrome.storage.local.get(["totalHiddenDealCount", "totalHiddenDealKeys"], (result) => {
+    chrome.storage.local.get(
+      ["totalHiddenDealCount", "totalHiddenDealKeys", "hiddenCountsByTerm"],
+      (result) => {
       const savedKeys = Array.isArray(result.totalHiddenDealKeys) ? result.totalHiddenDealKeys : [];
       totalHiddenDealKeys = new Set(savedKeys);
+      hiddenCountsByTerm =
+        result.hiddenCountsByTerm && typeof result.hiddenCountsByTerm === "object"
+          ? result.hiddenCountsByTerm
+          : {};
 
       if (!Number.isInteger(result.totalHiddenDealCount) && savedKeys.length === 0) {
         chrome.storage.sync.get(["totalHiddenDealCount"], (syncResult) => {
@@ -146,10 +154,26 @@ async function loadTotalHiddenDealState() {
       log("Loaded total hidden deal state from storage:", {
         totalHiddenDealCount,
         uniqueKeys: totalHiddenDealKeys.size,
+        trackedFilterTerms: Object.keys(hiddenCountsByTerm).length,
       });
       resolve(totalHiddenDealCount);
-    });
+      }
+    );
   });
+}
+
+function incrementHiddenCountForTerm(rawTerm) {
+  const normalizedTerm = normalizeForMatch(rawTerm);
+  if (!normalizedTerm) return;
+
+  const currentEntry = hiddenCountsByTerm[normalizedTerm] || {
+    term: rawTerm,
+    count: 0,
+  };
+
+  currentEntry.term = currentEntry.term || rawTerm;
+  currentEntry.count += 1;
+  hiddenCountsByTerm[normalizedTerm] = currentEntry;
 }
 
 
@@ -227,7 +251,7 @@ function findTitleInElement(container) {
   const titleSelectors = [
     "[data-testid='thread-title']",  // Common test ID for titles
     ".thread-title",                 // Common class for titles
-    ".cept-tt",                      // Mydealz specific class for titles
+    ".cept-tt",                      // mydealz.de specific class for titles
     ".title",                        // Generic title class
     "h2 a",                          // Heading with link
     "h3 a",                          // Alternative heading with link
@@ -257,7 +281,7 @@ function findTitleInElement(container) {
     if (text.length > 5) return text;
   }
 
-  // Try class-based selectors specific to mydealz
+  // Try class-based selectors specific to mydealz.de
   const classSelectors = [
     "[class*='title']",
     "[class*='heading']",
@@ -298,12 +322,12 @@ function findTitleInElement(container) {
 
 /**
  * Find all deal postings on the page
- * Optimized for myDealz's actual HTML structure
+ * Optimized for mydealz.de's actual HTML structure
  */
 function findDealPostings() {
   const postings = [];
 
-  // MyDealz specific selectors (in order of preference)
+  // mydealz.de specific selectors (in order of preference)
   const selectors = [
     // Primary selectors based on common mydealz.de structure
     "article.thread",           // Main article containers for deals
@@ -461,6 +485,7 @@ async function filterPostings(options = {}) {
       if (!totalHiddenDealKeys.has(dealKey)) {
         totalHiddenDealKeys.add(dealKey);
         newlyDiscoveredUniqueDeals++;
+        incrementHiddenCountForTerm(matchingTerm);
       }
 
       if (element.style.display !== "none") {
@@ -629,3 +654,7 @@ init();
 
 // Removed periodic refiltering as mutation observer handles dynamic content
 // This prevents unnecessary repeated filtering that may cause flickering
+
+
+
+
