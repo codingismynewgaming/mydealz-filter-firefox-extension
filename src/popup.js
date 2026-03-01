@@ -30,13 +30,14 @@ const statisticsList = document.getElementById("statisticsList");
 const noStatisticsData = document.getElementById("noStatisticsData");
 const exportBtn = document.getElementById("exportBtn");
 const importBtn = document.getElementById("importBtn");
-const importFileInput = document.getElementById("importFileInput");
 
 // Current hidden deals data
 let currentHiddenDeals = [];
 const MYDEALZ_BASE_HOST = "mydealz.de";
 const THEME_STORAGE_KEY = "popupTheme";
 const FILTER_STORAGE_KEYS = ["filterTerms", "exceptionTerms"];
+const BACKUP_FORMAT = "mydealz-filter-backup";
+const BACKUP_SCHEMA_VERSION = 2;
 const POPUP_MAX_HEIGHT_PX = 600;
 const SETTINGS_POPUP_TARGET_HEIGHT_PX = 720;
 const INFO_POPUP_TARGET_HEIGHT_PX = 740;
@@ -284,36 +285,72 @@ function triggerJsonDownload(payload) {
   URL.revokeObjectURL(blobUrl);
 }
 
-function buildExportPayload() {
-  const manifest = chrome.runtime.getManifest();
-  const filterTerms = parseTerms(filterTermsTextarea.value);
-  const exceptionTerms = parseTerms(exceptionTermsTextarea.value);
+function isPlainObject(value) {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+async function getStorageSnapshot() {
+  const syncArea = getStorageArea("sync");
+  const localArea = getStorageArea("local");
+  const { result: syncData, error: syncError } = await storageGet(syncArea, null);
+  const { result: localData, error: localError } = await storageGet(localArea, null);
 
   return {
+    syncData: isPlainObject(syncData) ? syncData : {},
+    localData: isPlainObject(localData) ? localData : {},
+    syncError,
+    localError,
+  };
+}
+
+async function buildExportPayload() {
+  const manifest = chrome.runtime.getManifest();
+  const { syncData, localData, syncError, localError } = await getStorageSnapshot();
+  const mergedData = { ...localData, ...syncData };
+  const filterTerms = parseTerms(
+    typeof mergedData.filterTerms === "string" ? mergedData.filterTerms : ""
+  );
+  const exceptionTerms = parseTerms(
+    typeof mergedData.exceptionTerms === "string" ? mergedData.exceptionTerms : ""
+  );
+
+  return {
+    format: BACKUP_FORMAT,
+    schemaVersion: BACKUP_SCHEMA_VERSION,
     version: manifest.version,
     exportedAt: new Date().toISOString(),
     filterTerms,
     exceptionTerms,
+    storage: {
+      local: localData,
+      sync: syncData,
+    },
+    storageErrors: {
+      local: !!localError,
+      sync: !!syncError,
+    },
   };
 }
 
 function validateImportPayload(payload) {
   if (!payload || typeof payload !== "object") return "Invalid JSON structure.";
 
-  const hasFilterTerms = Array.isArray(payload.filterTerms);
-  const hasExceptionTerms = Array.isArray(payload.exceptionTerms);
+  // Support both array and string (legacy/alternative formats)
+  const filterTerms = payload.filterTerms;
+  const exceptionTerms = payload.exceptionTerms;
+
+  const hasFilterTerms = Array.isArray(filterTerms) || typeof filterTerms === "string";
+  const hasExceptionTerms = Array.isArray(exceptionTerms) || typeof exceptionTerms === "string";
+
   if (!hasFilterTerms && !hasExceptionTerms) {
-    return "JSON must include filterTerms or exceptionTerms arrays.";
+    return "JSON must include filterTerms or exceptionTerms.";
   }
 
-  if (hasFilterTerms && !payload.filterTerms.every((term) => typeof term === "string")) {
+  if (Array.isArray(filterTerms) && !filterTerms.every((term) => typeof term === "string")) {
     return "filterTerms must be an array of strings.";
   }
 
-  if (
-    hasExceptionTerms &&
-    !payload.exceptionTerms.every((term) => typeof term === "string")
-  ) {
+  if (Array.isArray(exceptionTerms) && !exceptionTerms.every((term) => typeof term === "string")) {
     return "exceptionTerms must be an array of strings.";
   }
 
@@ -355,22 +392,45 @@ function applyTheme(theme) {
 
 async function loadThemePreference() {
   return new Promise((resolve) => {
-    chrome.storage.local.get([THEME_STORAGE_KEY], (result) => {
-      const storedTheme = result[THEME_STORAGE_KEY];
-      const initialTheme =
-        storedTheme === "dark" || storedTheme === "light"
-          ? storedTheme
-          : detectSystemTheme();
-      applyTheme(initialTheme);
-      resolve(initialTheme);
+    chrome.storage.sync.get([THEME_STORAGE_KEY], (syncResult) => {
+      let storedTheme = syncResult[THEME_STORAGE_KEY];
+      if (storedTheme === "dark" || storedTheme === "light") {
+        applyTheme(storedTheme);
+        resolve(storedTheme);
+        return;
+      }
+
+      chrome.storage.local.get([THEME_STORAGE_KEY], (localResult) => {
+        storedTheme = localResult[THEME_STORAGE_KEY];
+        const initialTheme =
+          storedTheme === "dark" || storedTheme === "light"
+            ? storedTheme
+            : detectSystemTheme();
+        applyTheme(initialTheme);
+        resolve(initialTheme);
+      });
     });
   });
 }
 
 async function saveThemePreference(theme) {
-  return new Promise((resolve) => {
-    chrome.storage.local.set({ [THEME_STORAGE_KEY]: theme }, () => resolve());
-  });
+  const payload = { [THEME_STORAGE_KEY]: theme };
+  const syncArea = getStorageArea("sync");
+  const localArea = getStorageArea("local");
+
+  if (syncArea) {
+    const { error } = await storageSet(syncArea, payload);
+    if (error) {
+      console.error("Error saving popup theme to sync storage:", error);
+    }
+  }
+
+  if (localArea) {
+    const { error } = await storageSet(localArea, payload);
+    if (error) {
+      console.error("Error saving popup theme to local storage:", error);
+    }
+  }
 }
 
 /**
@@ -379,39 +439,40 @@ async function saveThemePreference(theme) {
 async function loadFilterTerms() {
   const syncArea = getStorageArea("sync");
   const localArea = getStorageArea("local");
+  let loadedFrom = "none";
+  let filterTerms = "";
+  let exceptionTerms = "";
 
+  // Always try sync first for the most up-to-date data.
   if (syncArea) {
     const { result, error } = await storageGet(syncArea, FILTER_STORAGE_KEYS);
-    if (!error) {
-      const filterTerms = result.filterTerms || "";
-      const exceptionTerms = result.exceptionTerms || "";
-      filterTermsTextarea.value = filterTerms;
-      exceptionTermsTextarea.value = exceptionTerms;
-      autoGrowKeywordTextareas();
+    if (!error && (result.filterTerms || result.exceptionTerms)) {
+      filterTerms = result.filterTerms || "";
+      exceptionTerms = result.exceptionTerms || "";
+      loadedFrom = "sync";
       setSyncStatus("ok");
-      return { filterTerms, exceptionTerms, storage: "sync" };
+    } else if (error) {
+      console.error("Error loading terms from sync storage:", error);
+      setSyncStatus("error");
     }
-
-    console.error("Error loading terms from sync storage:", error);
-    setSyncStatus("error");
   } else {
     setSyncStatus("error", "Sync: Off");
   }
 
-  if (localArea) {
+  // Fallback to local if sync yielded nothing or failed.
+  if (loadedFrom === "none" && localArea) {
     const { result } = await storageGet(localArea, FILTER_STORAGE_KEYS);
-    const filterTerms = result.filterTerms || "";
-    const exceptionTerms = result.exceptionTerms || "";
-    filterTermsTextarea.value = filterTerms;
-    exceptionTermsTextarea.value = exceptionTerms;
-    autoGrowKeywordTextareas();
-    return { filterTerms, exceptionTerms, storage: "local" };
+    if (result.filterTerms || result.exceptionTerms) {
+      filterTerms = result.filterTerms || "";
+      exceptionTerms = result.exceptionTerms || "";
+      loadedFrom = "local";
+    }
   }
 
-  filterTermsTextarea.value = "";
-  exceptionTermsTextarea.value = "";
+  filterTermsTextarea.value = filterTerms;
+  exceptionTermsTextarea.value = exceptionTerms;
   autoGrowKeywordTextareas();
-  return { filterTerms: "", exceptionTerms: "", storage: "none" };
+  return { filterTerms, exceptionTerms, storage: loadedFrom };
 }
 
 /**
@@ -462,6 +523,7 @@ async function saveFilterTerms() {
   const filterTerms = dedupedFilters.unique.join(", ");
   const exceptionTerms = dedupedExceptions.unique.join(", ");
   const payload = { filterTerms, exceptionTerms };
+
   const syncArea = getStorageArea("sync");
   const localArea = getStorageArea("local");
 
@@ -469,119 +531,177 @@ async function saveFilterTerms() {
   exceptionTermsTextarea.value = exceptionTerms;
   autoGrowKeywordTextareas();
 
+  let syncError = false;
+  let localError = false;
+  let quotaExceeded = false;
+
+  // 8KB per-item quota check for Firefox Sync
+  const SYNC_QUOTA_PER_ITEM = 8192;
+  if (new Blob([filterTerms]).size > SYNC_QUOTA_PER_ITEM || 
+      new Blob([exceptionTerms]).size > SYNC_QUOTA_PER_ITEM) {
+    console.warn("Sync quota might be exceeded for these filters.");
+    quotaExceeded = true;
+  }
+
+  // Save to sync if available.
   if (syncArea) {
     const { error } = await storageSet(syncArea, payload);
-    if (!error) {
+    if (error) {
+      console.error("Sync storage error:", error);
+      syncError = true;
+      setSyncStatus("error");
+    } else {
       setSyncStatus("ok");
-      return {
-        filterTerms,
-        exceptionTerms,
-        storage: "sync",
-        syncError: false,
-        filterDuplicates: dedupedFilters.duplicates,
-        exceptionDuplicates: dedupedExceptions.duplicates,
-      };
     }
-
-    console.error("Error saving terms to sync storage:", error);
-    setSyncStatus("error");
   } else {
+    syncError = true;
     setSyncStatus("error", "Sync: Off");
   }
 
+  // Always save to local as a reliable mirror.
   if (localArea) {
-    await storageSet(localArea, payload);
-    return {
-      filterTerms,
-      exceptionTerms,
-      storage: "local",
-      syncError: true,
-      filterDuplicates: dedupedFilters.duplicates,
-      exceptionDuplicates: dedupedExceptions.duplicates,
-    };
+    const { error } = await storageSet(localArea, payload);
+    if (error) {
+      console.error("Local storage error:", error);
+      localError = true;
+    }
   }
 
   return {
     filterTerms,
     exceptionTerms,
-    storage: "none",
-    syncError: true,
+    storage: !syncError ? "sync" : "local",
+    syncError,
+    localError,
+    quotaExceeded,
     filterDuplicates: dedupedFilters.duplicates,
     exceptionDuplicates: dedupedExceptions.duplicates,
   };
 }
 
 async function handleExportFilters() {
-  const payload = buildExportPayload();
-  if (payload.filterTerms.length === 0 && payload.exceptionTerms.length === 0) {
+  const payload = await buildExportPayload();
+  const syncKeys = Object.keys(payload.storage.sync || {}).length;
+  const localKeys = Object.keys(payload.storage.local || {}).length;
+
+  if (syncKeys === 0 && localKeys === 0) {
     showStatus("Nothing to export yet.", "error");
     return;
   }
 
   triggerJsonDownload(payload);
   showStatus(
-    `Exported ${payload.filterTerms.length} filter and ${payload.exceptionTerms.length} exception terms.`,
+    `Exported full backup (${syncKeys} sync key(s), ${localKeys} local key(s)).`,
     "success"
   );
 }
 
 async function handleImportFilters(file) {
-  if (!file) return;
+  if (!file) {
+    console.warn("[mydealz Filter] No file selected for import.");
+    return;
+  }
+
+  showStatus("Reading file...", "success");
+  console.log("[mydealz Filter] Starting import for file:", file.name, file.type, file.size);
+
+  const readFileAsText = (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(new Error("File reading failed"));
+      reader.readAsText(file);
+    });
+  };
 
   let parsedPayload;
   try {
-    const fileContent = await file.text();
+    const fileContent = await readFileAsText(file);
+    console.log("[mydealz Filter] File content read successfully. Length:", fileContent.length);
     parsedPayload = JSON.parse(fileContent);
-  } catch (error) {
+  } catch (err) {
+    console.error("[mydealz Filter] Error reading or parsing JSON:", err);
     showStatus("Import failed: invalid JSON file.", "error");
     return;
   }
 
+  console.log("[mydealz Filter] Validating payload structure...");
   const validationError = validateImportPayload(parsedPayload);
   if (validationError) {
+    console.error("[mydealz Filter] Validation error:", validationError);
     showStatus(`Import failed: ${validationError}`, "error");
     return;
   }
 
-  const importedFilterTerms = Array.isArray(parsedPayload.filterTerms)
-    ? parsedPayload.filterTerms
-    : [];
-  const importedExceptionTerms = Array.isArray(parsedPayload.exceptionTerms)
-    ? parsedPayload.exceptionTerms
-    : [];
+  try {
+    const importedFilterTerms = Array.isArray(parsedPayload.filterTerms)
+      ? parsedPayload.filterTerms
+      : typeof parsedPayload.filterTerms === "string"
+      ? parseTerms(parsedPayload.filterTerms)
+      : [];
+    const importedExceptionTerms = Array.isArray(parsedPayload.exceptionTerms)
+      ? parsedPayload.exceptionTerms
+      : typeof parsedPayload.exceptionTerms === "string"
+      ? parseTerms(parsedPayload.exceptionTerms)
+      : [];
 
-  const existingFilterTerms = parseTerms(filterTermsTextarea.value);
-  const existingExceptionTerms = parseTerms(exceptionTermsTextarea.value);
+    console.log("[mydealz Filter] Parsed terms:", {
+      filters: importedFilterTerms.length,
+      exceptions: importedExceptionTerms.length
+    });
 
-  const mergedFilters = mergeUniqueTerms(existingFilterTerms, importedFilterTerms);
-  const mergedExceptions = mergeUniqueTerms(existingExceptionTerms, importedExceptionTerms);
+    const existingFilterTerms = parseTerms(filterTermsTextarea.value);
+    const existingExceptionTerms = parseTerms(exceptionTermsTextarea.value);
 
-  filterTermsTextarea.value = mergedFilters.merged.join(", ");
-  exceptionTermsTextarea.value = mergedExceptions.merged.join(", ");
-  autoGrowKeywordTextareas();
+    console.log("[mydealz Filter] Merging with existing terms...");
+    const mergedFilters = mergeUniqueTerms(existingFilterTerms, importedFilterTerms);
+    const mergedExceptions = mergeUniqueTerms(existingExceptionTerms, importedExceptionTerms);
 
-  const { syncError } = await saveFilterTerms();
-  await notifyContentScripts();
+    console.log("[mydealz Filter] Merge results:", {
+      filters: mergedFilters.importedCount,
+      exceptions: mergedExceptions.importedCount,
+      skipped: mergedFilters.skippedCount + mergedExceptions.skippedCount
+    });
 
-  if (hiddenPostsTab.classList.contains("active")) {
-    displayHiddenDeals();
-  } else if (statisticsTab.classList.contains("active")) {
-    displayFilterStatistics();
+    filterTermsTextarea.value = mergedFilters.merged.join(", ");
+    exceptionTermsTextarea.value = mergedExceptions.merged.join(", ");
+    autoGrowKeywordTextareas();
+
+    console.log("[mydealz Filter] Saving merged terms to storage...");
+    const { syncError, quotaExceeded } = await saveFilterTerms();
+    console.log("[mydealz Filter] Save completed.", { syncError, quotaExceeded });
+    
+    await notifyContentScripts();
+
+    if (hiddenPostsTab.classList.contains("active")) {
+      displayHiddenDeals();
+    } else if (statisticsTab.classList.contains("active")) {
+      displayFilterStatistics();
+    }
+
+    const importedTotal = mergedFilters.importedCount + mergedExceptions.importedCount;
+    const skippedTotal = mergedFilters.skippedCount + mergedExceptions.skippedCount;
+    
+    let syncSuffix = "";
+    if (syncError) syncSuffix = " Saved locally (Sync issue).";
+    else if (quotaExceeded) syncSuffix = " (Quota warning)";
+
+    if (importedTotal === 0) {
+      showStatus(
+        `No new terms found. ${skippedTotal} duplicates skipped.${syncSuffix}`,
+        syncError ? "error" : "success"
+      );
+    } else {
+      showStatus(
+        `Imported ${importedTotal} terms, ${skippedTotal} skipped.${syncSuffix}`,
+        syncError ? "error" : "success"
+      );
+    }
+    console.log("[mydealz Filter] Import process finished successfully.");
+  } catch (err) {
+    console.error("[mydealz Filter] Unexpected import logic error:", err);
+    showStatus("Import failed due to an internal error.", "error");
   }
-
-  const importedTotal = mergedFilters.importedCount + mergedExceptions.importedCount;
-  const skippedTotal = mergedFilters.skippedCount + mergedExceptions.skippedCount;
-  const syncSuffix = syncError ? " Saved locally due to sync issue." : "";
-
-  if (importedTotal === 0) {
-    showStatus(`No new terms imported. Skipped ${skippedTotal} duplicates.${syncSuffix}`, "error");
-    return;
-  }
-
-  showStatus(
-    `Imported ${importedTotal} terms, skipped ${skippedTotal} duplicates.${syncSuffix}`,
-    syncError ? "error" : "success"
-  );
 }
 
 /**
@@ -596,6 +716,32 @@ function showStatus(message, type = "success") {
     statusDiv.textContent = "";
     statusDiv.className = "status";
   }, 3000);
+}
+
+function openOptionsPageForImport() {
+  const fallbackUrl =
+    chrome.runtime && typeof chrome.runtime.getURL === "function"
+      ? chrome.runtime.getURL("src/options.html")
+      : "src/options.html";
+
+  const openFallbackTab = () => {
+    if (chrome.tabs && typeof chrome.tabs.create === "function") {
+      chrome.tabs.create({ url: fallbackUrl });
+      return;
+    }
+    window.open(fallbackUrl, "_blank", "noopener,noreferrer");
+  };
+
+  if (chrome.runtime && typeof chrome.runtime.openOptionsPage === "function") {
+    chrome.runtime.openOptionsPage(() => {
+      if (chrome.runtime.lastError) {
+        openFallbackTab();
+      }
+    });
+    return;
+  }
+
+  openFallbackTab();
 }
 
 /**
@@ -841,6 +987,7 @@ saveBtn.addEventListener("click", async () => {
       filterTerms,
       exceptionTerms,
       syncError,
+      quotaExceeded,
       filterDuplicates,
       exceptionDuplicates,
     } = await saveFilterTerms();
@@ -855,17 +1002,19 @@ saveBtn.addEventListener("click", async () => {
 
     highlightDuplicateFields(filterDuplicates, exceptionDuplicates);
 
-    if (syncError) {
-      showStatus("Saved locally. Firefox Sync is currently unavailable.", "error");
-    } else if (uniqueDuplicateLabels.length > 0) {
+    let syncSuffix = "";
+    if (syncError) syncSuffix = " Saved locally (Sync issue).";
+    else if (quotaExceeded) syncSuffix = " (Quota warning)";
+
+    if (uniqueDuplicateLabels.length > 0) {
       showStatus(
-        `⚠ Skipped duplicates: ${uniqueDuplicateLabels.join(", ")}`,
-        "error"
+        `⚠ Skipped duplicates: ${uniqueDuplicateLabels.join(", ")}${syncSuffix}`,
+        syncError ? "error" : "success"
       );
     } else if (filterTermCount > 0 || exceptionTermCount > 0) {
-      showStatus(`✓ Saved ${filterTermCount} filter term(s) and ${exceptionTermCount} exception term(s)!`, "success");
+      showStatus(`✓ Saved ${filterTermCount} filter term(s) and ${exceptionTermCount} exception term(s)!${syncSuffix}`, syncError ? "error" : "success");
     } else {
-      showStatus("✓ Filters cleared", "success");
+      showStatus(`✓ Filters cleared${syncSuffix}`, syncError ? "error" : "success");
     }
 
     // Notify content scripts about the change
@@ -888,13 +1037,8 @@ exportBtn.addEventListener("click", async () => {
 });
 
 importBtn.addEventListener("click", () => {
-  importFileInput.click();
-});
-
-importFileInput.addEventListener("change", async (event) => {
-  const [file] = event.target.files || [];
-  await handleImportFilters(file);
-  event.target.value = "";
+  showStatus("Opening Options page for JSON import...", "success");
+  openOptionsPageForImport();
 });
 
 themeToggleBtn.addEventListener("click", async () => {
@@ -946,5 +1090,3 @@ async function init() {
 
 // Initialize the popup
 init();
-
-

@@ -1,6 +1,6 @@
 # mydealz.de Filter
 
-Version: 1.0.3
+Version: 1.0.5
 
 mydealz.de Filter hides unwanted deals on `mydealz.de` based on your keywords.
 

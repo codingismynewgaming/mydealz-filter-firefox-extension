@@ -17,6 +17,11 @@ let hiddenCountsByTerm = {};
 let persistTotalsTimer = null;
 const TOTALS_PERSIST_DEBOUNCE_MS = 1500;
 const DEAL_DETAILS_PATH_PREFIX = "/deals/";
+const SYNC_CHUNK_SIZE = 7000;
+const SYNC_KEY_CHUNK_PREFIX = "totalHiddenDealKeysChunk_";
+const SYNC_KEY_CHUNK_COUNT_KEY = "totalHiddenDealKeysChunkCount";
+const SYNC_TERM_COUNT_CHUNK_PREFIX = "hiddenCountsByTermChunk_";
+const SYNC_TERM_COUNT_CHUNK_COUNT_KEY = "hiddenCountsByTermChunkCount";
 
 /**
  * Debug logging helper
@@ -97,21 +102,116 @@ function buildDealUniqueKey(title, url) {
   return `title:${normalizeDealTitle(title)}`;
 }
 
+function chunkString(value, chunkSize) {
+  if (!value) return [""];
+  const chunks = [];
+  for (let i = 0; i < value.length; i += chunkSize) {
+    chunks.push(value.slice(i, i + chunkSize));
+  }
+  return chunks;
+}
+
+function buildChunkKeys(prefix, count) {
+  return Array.from({ length: Math.max(0, count) }, (_, i) => `${prefix}${i}`);
+}
+
+function parseChunkedJsonPayload(rawValue, fallbackValue) {
+  if (typeof rawValue !== "string" || rawValue.length === 0) return fallbackValue;
+  try {
+    const parsed = JSON.parse(rawValue);
+    return parsed === undefined ? fallbackValue : parsed;
+  } catch {
+    return fallbackValue;
+  }
+}
+
+function persistTotalsToSync(payload) {
+  const serializedKeys = JSON.stringify(payload.totalHiddenDealKeys || []);
+  const serializedTermCounts = JSON.stringify(payload.hiddenCountsByTerm || {});
+  const keyChunks = chunkString(serializedKeys, SYNC_CHUNK_SIZE);
+  const termCountChunks = chunkString(serializedTermCounts, SYNC_CHUNK_SIZE);
+  const syncPayload = {
+    totalHiddenDealCount: payload.totalHiddenDealCount,
+    [SYNC_KEY_CHUNK_COUNT_KEY]: keyChunks.length,
+    [SYNC_TERM_COUNT_CHUNK_COUNT_KEY]: termCountChunks.length,
+  };
+
+  keyChunks.forEach((chunk, index) => {
+    syncPayload[`${SYNC_KEY_CHUNK_PREFIX}${index}`] = chunk;
+  });
+
+  termCountChunks.forEach((chunk, index) => {
+    syncPayload[`${SYNC_TERM_COUNT_CHUNK_PREFIX}${index}`] = chunk;
+  });
+
+  if (serializedKeys.length <= SYNC_CHUNK_SIZE) {
+    syncPayload.totalHiddenDealKeys = payload.totalHiddenDealKeys;
+  }
+  if (serializedTermCounts.length <= SYNC_CHUNK_SIZE) {
+    syncPayload.hiddenCountsByTerm = payload.hiddenCountsByTerm;
+  }
+
+  chrome.storage.sync.get(
+    [SYNC_KEY_CHUNK_COUNT_KEY, SYNC_TERM_COUNT_CHUNK_COUNT_KEY],
+    (existingSyncState) => {
+      const previousKeyChunkCount = Number.isInteger(existingSyncState[SYNC_KEY_CHUNK_COUNT_KEY])
+        ? existingSyncState[SYNC_KEY_CHUNK_COUNT_KEY]
+        : 0;
+      const previousTermChunkCount = Number.isInteger(
+        existingSyncState[SYNC_TERM_COUNT_CHUNK_COUNT_KEY]
+      )
+        ? existingSyncState[SYNC_TERM_COUNT_CHUNK_COUNT_KEY]
+        : 0;
+
+      chrome.storage.sync.set(syncPayload, () => {
+        if (chrome.runtime.lastError) {
+          log("Error saving total hidden deal state to sync storage:", chrome.runtime.lastError);
+          return;
+        }
+
+        const staleChunkKeys = [
+          ...Array.from(
+            {
+              length: Math.max(previousKeyChunkCount - keyChunks.length, 0),
+            },
+            (_, idx) => `${SYNC_KEY_CHUNK_PREFIX}${idx + keyChunks.length}`
+          ),
+          ...Array.from(
+            {
+              length: Math.max(previousTermChunkCount - termCountChunks.length, 0),
+            },
+            (_, idx) => `${SYNC_TERM_COUNT_CHUNK_PREFIX}${idx + termCountChunks.length}`
+          ),
+        ];
+
+        if (staleChunkKeys.length > 0) {
+          chrome.storage.sync.remove(staleChunkKeys, () => {
+            if (chrome.runtime.lastError) {
+              log("Error removing stale sync chunk keys:", chrome.runtime.lastError);
+            }
+          });
+        }
+      });
+    }
+  );
+}
+
 function schedulePersistTotals() {
   clearTimeout(persistTotalsTimer);
   persistTotalsTimer = setTimeout(() => {
-    chrome.storage.local.set(
-      {
-        totalHiddenDealCount,
-        totalHiddenDealKeys: Array.from(totalHiddenDealKeys),
-        hiddenCountsByTerm,
-      },
-      () => {
-        if (chrome.runtime.lastError) {
-          log("Error saving total hidden deal state:", chrome.runtime.lastError);
-        }
+    const payload = {
+      totalHiddenDealCount,
+      totalHiddenDealKeys: Array.from(totalHiddenDealKeys),
+      hiddenCountsByTerm,
+    };
+
+    chrome.storage.local.set(payload, () => {
+      if (chrome.runtime.lastError) {
+        log("Error saving total hidden deal state to local storage:", chrome.runtime.lastError);
       }
-    );
+    });
+
+    persistTotalsToSync(payload);
   }, TOTALS_PERSIST_DEBOUNCE_MS);
 }
 
@@ -123,40 +223,126 @@ async function loadTotalHiddenDealState() {
     chrome.storage.local.get(
       ["totalHiddenDealCount", "totalHiddenDealKeys", "hiddenCountsByTerm"],
       (result) => {
-      const savedKeys = Array.isArray(result.totalHiddenDealKeys) ? result.totalHiddenDealKeys : [];
-      totalHiddenDealKeys = new Set(savedKeys);
-      hiddenCountsByTerm =
-        result.hiddenCountsByTerm && typeof result.hiddenCountsByTerm === "object"
-          ? result.hiddenCountsByTerm
-          : {};
+        const savedKeys = Array.isArray(result.totalHiddenDealKeys)
+          ? result.totalHiddenDealKeys
+          : [];
+        totalHiddenDealKeys = new Set(savedKeys);
+        hiddenCountsByTerm =
+          result.hiddenCountsByTerm && typeof result.hiddenCountsByTerm === "object"
+            ? result.hiddenCountsByTerm
+            : {};
 
-      if (!Number.isInteger(result.totalHiddenDealCount) && savedKeys.length === 0) {
-        chrome.storage.sync.get(["totalHiddenDealCount"], (syncResult) => {
-          totalHiddenDealCount = Number.isInteger(syncResult.totalHiddenDealCount)
-            ? syncResult.totalHiddenDealCount
-            : 0;
+        if (
+          !Number.isInteger(result.totalHiddenDealCount) &&
+          savedKeys.length === 0 &&
+          Object.keys(hiddenCountsByTerm).length === 0
+        ) {
+          chrome.storage.sync.get(
+            [
+              "totalHiddenDealCount",
+              "totalHiddenDealKeys",
+              "hiddenCountsByTerm",
+              SYNC_KEY_CHUNK_COUNT_KEY,
+              SYNC_TERM_COUNT_CHUNK_COUNT_KEY,
+            ],
+            (syncBaseState) => {
+              const keyChunkCount = Number.isInteger(syncBaseState[SYNC_KEY_CHUNK_COUNT_KEY])
+                ? syncBaseState[SYNC_KEY_CHUNK_COUNT_KEY]
+                : 0;
+              const termChunkCount = Number.isInteger(
+                syncBaseState[SYNC_TERM_COUNT_CHUNK_COUNT_KEY]
+              )
+                ? syncBaseState[SYNC_TERM_COUNT_CHUNK_COUNT_KEY]
+                : 0;
+              const chunkKeys = [
+                ...buildChunkKeys(SYNC_KEY_CHUNK_PREFIX, keyChunkCount),
+                ...buildChunkKeys(SYNC_TERM_COUNT_CHUNK_PREFIX, termChunkCount),
+              ];
 
-          if (totalHiddenDealCount > 0) {
-            schedulePersistTotals();
-          }
+              const finalizeFromSyncState = (syncChunkState) => {
+                const serializedSyncKeys =
+                  keyChunkCount > 0
+                    ? buildChunkKeys(SYNC_KEY_CHUNK_PREFIX, keyChunkCount)
+                        .map((chunkKey) => syncChunkState[chunkKey] || "")
+                        .join("")
+                    : null;
+                const serializedSyncTermCounts =
+                  termChunkCount > 0
+                    ? buildChunkKeys(SYNC_TERM_COUNT_CHUNK_PREFIX, termChunkCount)
+                        .map((chunkKey) => syncChunkState[chunkKey] || "")
+                        .join("")
+                    : null;
 
-          log("Loaded total hidden deal count from sync fallback:", totalHiddenDealCount);
-          resolve(totalHiddenDealCount);
+                const directSyncKeys = Array.isArray(syncBaseState.totalHiddenDealKeys)
+                  ? syncBaseState.totalHiddenDealKeys
+                  : [];
+                const directSyncTermCounts =
+                  syncBaseState.hiddenCountsByTerm &&
+                  typeof syncBaseState.hiddenCountsByTerm === "object"
+                    ? syncBaseState.hiddenCountsByTerm
+                    : {};
+
+                const parsedChunkKeys = parseChunkedJsonPayload(
+                  serializedSyncKeys,
+                  directSyncKeys
+                );
+                const parsedChunkTermCounts = parseChunkedJsonPayload(
+                  serializedSyncTermCounts,
+                  directSyncTermCounts
+                );
+
+                totalHiddenDealKeys = new Set(
+                  Array.isArray(parsedChunkKeys) ? parsedChunkKeys : directSyncKeys
+                );
+                hiddenCountsByTerm =
+                  parsedChunkTermCounts && typeof parsedChunkTermCounts === "object"
+                    ? parsedChunkTermCounts
+                    : directSyncTermCounts;
+                const syncCount = Number.isInteger(syncBaseState.totalHiddenDealCount)
+                  ? syncBaseState.totalHiddenDealCount
+                  : totalHiddenDealKeys.size;
+                totalHiddenDealCount = Math.max(syncCount, totalHiddenDealKeys.size);
+
+                if (
+                  totalHiddenDealCount > 0 ||
+                  totalHiddenDealKeys.size > 0 ||
+                  Object.keys(hiddenCountsByTerm).length > 0
+                ) {
+                  schedulePersistTotals();
+                }
+
+                log("Loaded total hidden deal state from sync fallback:", {
+                  totalHiddenDealCount,
+                  uniqueKeys: totalHiddenDealKeys.size,
+                  trackedFilterTerms: Object.keys(hiddenCountsByTerm).length,
+                });
+                resolve(totalHiddenDealCount);
+              };
+
+              if (chunkKeys.length === 0) {
+                finalizeFromSyncState({});
+                return;
+              }
+
+              chrome.storage.sync.get(chunkKeys, (syncChunkState) => {
+                finalizeFromSyncState(syncChunkState || {});
+              });
+            }
+          );
+          return;
+        }
+
+        const savedCount = Number.isInteger(result.totalHiddenDealCount)
+          ? result.totalHiddenDealCount
+          : totalHiddenDealKeys.size;
+        totalHiddenDealCount = Math.max(savedCount, totalHiddenDealKeys.size);
+
+        log("Loaded total hidden deal state from storage:", {
+          totalHiddenDealCount,
+          uniqueKeys: totalHiddenDealKeys.size,
+          trackedFilterTerms: Object.keys(hiddenCountsByTerm).length,
         });
-        return;
-      }
-
-      const savedCount = Number.isInteger(result.totalHiddenDealCount)
-        ? result.totalHiddenDealCount
-        : totalHiddenDealKeys.size;
-      totalHiddenDealCount = Math.max(savedCount, totalHiddenDealKeys.size);
-
-      log("Loaded total hidden deal state from storage:", {
-        totalHiddenDealCount,
-        uniqueKeys: totalHiddenDealKeys.size,
-        trackedFilterTerms: Object.keys(hiddenCountsByTerm).length,
-      });
-      resolve(totalHiddenDealCount);
+        resolve(totalHiddenDealCount);
       }
     );
   });
@@ -179,29 +365,60 @@ function incrementHiddenCountForTerm(rawTerm) {
 
 /**
  * Get filter terms and exception terms from storage
+ * Tries sync storage first, falls back to local storage if sync is empty or fails.
  */
 async function getFilterTerms() {
   return new Promise((resolve) => {
     try {
       chrome.storage.sync.get(["filterTerms", "exceptionTerms"], (result) => {
-        // Check for errors
         if (chrome.runtime.lastError) {
-          log("Error retrieving filter terms:", chrome.runtime.lastError);
-          resolve({ filterTerms: [], exceptionTerms: [] });
+          log("Sync storage unavailable, trying local fallback:", chrome.runtime.lastError);
+          // If sync fails, try local
+          chrome.storage.local.get(["filterTerms", "exceptionTerms"], (localResult) => {
+            const filterTerms = localResult.filterTerms || "";
+            const exceptionTerms = localResult.exceptionTerms || "";
+            resolve({ 
+              filterTerms: parseTermEntries(filterTerms), 
+              exceptionTerms: parseTermEntries(exceptionTerms) 
+            });
+          });
           return;
         }
 
-        const filterTerms = result.filterTerms || "";
-        const exceptionTerms = result.exceptionTerms || "";
+        let filterTerms = result.filterTerms || "";
+        let exceptionTerms = result.exceptionTerms || "";
 
-        const filterTermsList = parseTermEntries(filterTerms);
-        const exceptionTermsList = parseTermEntries(exceptionTerms);
+        // If sync is empty but we might have local data (e.g. sync failed previously)
+        if (!filterTerms && !exceptionTerms) {
+          chrome.storage.local.get(["filterTerms", "exceptionTerms"], (localResult) => {
+            filterTerms = localResult.filterTerms || "";
+            exceptionTerms = localResult.exceptionTerms || "";
+            resolve({ 
+              filterTerms: parseTermEntries(filterTerms), 
+              exceptionTerms: parseTermEntries(exceptionTerms) 
+            });
+          });
+          return;
+        }
 
-        resolve({ filterTerms: filterTermsList, exceptionTerms: exceptionTermsList });
+        resolve({ 
+          filterTerms: parseTermEntries(filterTerms), 
+          exceptionTerms: parseTermEntries(exceptionTerms) 
+        });
       });
     } catch (error) {
       log("Exception getting filter terms:", error);
-      resolve({ filterTerms: [], exceptionTerms: [] });
+      // Final fallback to local
+      try {
+        chrome.storage.local.get(["filterTerms", "exceptionTerms"], (localResult) => {
+          resolve({ 
+            filterTerms: parseTermEntries(localResult.filterTerms || ""), 
+            exceptionTerms: parseTermEntries(localResult.exceptionTerms || "") 
+          });
+        });
+      } catch (innerError) {
+        resolve({ filterTerms: [], exceptionTerms: [] });
+      }
     }
   });
 }

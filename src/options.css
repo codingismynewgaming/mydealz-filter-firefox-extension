@@ -57,9 +57,46 @@ body {
   gap: 14px;
 }
 
+.header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
 .header h1 {
-  margin: 0 0 4px;
+  margin: 0;
   font-size: 22px;
+}
+
+.sync-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.sync-badge.ok {
+  background: var(--success-bg);
+  color: var(--success-text);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.sync-badge.error {
+  background: var(--error-bg);
+  color: var(--error-text);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.sync-badge.checking {
+  background: var(--secondary);
+  color: var(--muted);
+  border: 1px solid var(--border);
+  opacity: 0.8;
 }
 
 .subtitle {
@@ -142,7 +179,15 @@ textarea.has-duplicates {
 }
 
 .import-file-input {
-  display: none;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .btn {
