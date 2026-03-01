@@ -1,7 +1,7 @@
 # Project Status - mydealz-filter-firefox-extension
 
 ## Current Status
-- Version 1.0.5 release candidate built.
+- Version 1.0.5 released and pushed to GitHub.
 - Full backup feature added: export/import now covers all storage data.
 
 ## Recent Changes
@@ -46,11 +46,19 @@
   - Generated local debug artifact:
     - `web-ext-artifacts/mydealz.de_filter-1.0.5.zip`
     - `web-ext-artifacts/mydealz.de_filter-1.0.5.xpi` (zip copy for install convenience)
+- **GitHub:**
+  - Committed release changes:
+    - Commit: `4d25627`
+    - Message: `chore(release): bump to 1.0.5 with full backup import/export`
+  - Pushed to `origin/master`.
+- **Android Nightly Deploy Attempt:**
+  - `adb devices -l` shows no connected device/emulator.
+  - Debug push to Firefox Nightly is blocked until an Android device is connected with USB debugging.
 - **Dual Storage (Previously implemented):**
   - Settings saved to both `sync` and `local`.
   - Content script fallback logic.
 
 ## Next Steps
-- Push release commit to GitHub.
-- Deploy debug build to Firefox Nightly on Android device (ADB device connection required).
+- Connect Android phone (USB debugging enabled) or ADB-over-WiFi target.
+- Push/install debug build to Firefox Nightly.
 --- End of content ---
