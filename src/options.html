@@ -12,7 +12,6 @@
         <header class="header">
           <div class="header-top">
             <h1>mydealz.de Filter Settings</h1>
-            <div id="syncStatusBadge" class="sync-badge checking" title="Checking Firefox Sync status">Sync: ...</div>
           </div>
           <p class="subtitle">Set filter and exception keywords</p>
         </header>
@@ -46,10 +45,69 @@
           <button id="saveBtn" class="btn btn-primary" type="button">Save Filters</button>
         </div>
 
+        <section class="preferences-section" aria-labelledby="preferencesHeading">
+          <div class="section-heading">
+            <h2 id="preferencesHeading">Preferences</h2>
+            <p class="section-copy">Optional quality-of-life features for browsing mydealz.de.</p>
+          </div>
+
+          <label class="toggle-card" for="autoSortComments">
+            <span class="toggle-copy">
+              <span class="toggle-title">Auto-sort comments to "am hilfreichsten"</span>
+              <span class="toggle-description">Only on deal detail pages. Disabled by default.</span>
+            </span>
+            <input id="autoSortComments" type="checkbox" />
+          </label>
+
+          <label class="toggle-card" for="greyOutSeenDeals">
+            <span class="toggle-copy">
+              <span class="toggle-title">Grey out seen deals</span>
+              <span class="toggle-description">Keeps deals clickable, but fades repeats only after you scroll past them or leave the deal page.</span>
+            </span>
+            <input id="greyOutSeenDeals" type="checkbox" />
+          </label>
+        </section>
+
+        <section class="categories-section" aria-labelledby="categoriesHeading">
+          <div class="section-heading">
+            <h2 id="categoriesHeading">Filter Categories</h2>
+            <p class="section-copy">Organize filter terms into groups and toggle whole categories on or off.</p>
+          </div>
+
+          <div class="category-toolbar">
+            <div class="category-create-row">
+              <input
+                id="newCategoryName"
+                class="text-input"
+                type="text"
+                maxlength="50"
+                placeholder="New category name"
+                aria-label="New category name"
+              />
+              <button id="createCategoryBtn" class="btn btn-secondary" type="button">Create Category</button>
+            </div>
+            <div class="category-bulk-actions">
+              <button id="enableAllCategoriesBtn" class="btn btn-secondary" type="button">Enable All</button>
+              <button id="disableAllCategoriesBtn" class="btn btn-secondary" type="button">Disable All</button>
+            </div>
+          </div>
+
+          <p id="categorySummary" class="hint">0 of 0 categories active</p>
+          <div id="categoriesList" class="categories-list"></div>
+        </section>
+
         <div class="transfer-group">
           <button id="exportBtn" class="btn btn-secondary" type="button">Export Filters</button>
-          <button id="importBtn" class="btn btn-secondary" type="button">Import Filters</button>
-          <input id="importFileInput" class="import-file-input" type="file" accept=".json,application/json" />
+          <div class="file-picker-btn">
+            <button id="importBtn" class="btn btn-secondary" type="button">Import Filters</button>
+            <input
+              id="importFileInput"
+              class="import-file-input import-file-input-overlay"
+              type="file"
+              accept=".json,application/json"
+              aria-label="Import filters from JSON file"
+            />
+          </div>
         </div>
 
         <div id="status" class="status" aria-live="polite"></div>

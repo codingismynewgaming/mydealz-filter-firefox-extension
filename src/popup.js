@@ -10,16 +10,19 @@ const saveBtn = document.getElementById("saveBtn");
 const statusDiv = document.getElementById("status");
 const themeToggleBtn = document.getElementById("themeToggleBtn");
 const popupVersionLabel = document.getElementById("popupVersion");
-const syncStatusBadge = document.getElementById("syncStatusBadge");
+const autoSortCommentsCheckbox = document.getElementById("autoSortComments");
+const greyOutSeenDealsCheckbox = document.getElementById("greyOutSeenDeals");
 
 // Tab elements
 const settingsTabBtn = document.getElementById("settingsTabBtn");
 const hiddenPostsTabBtn = document.getElementById("hiddenPostsTabBtn");
 const statisticsTabBtn = document.getElementById("statisticsTabBtn");
+const manageGroupsTabBtn = document.getElementById("manageGroupsTabBtn");
 const infoTabBtn = document.getElementById("infoTabBtn");
 const settingsTab = document.getElementById("settingsTab");
 const hiddenPostsTab = document.getElementById("hiddenPostsTab");
 const statisticsTab = document.getElementById("statisticsTab");
+const manageGroupsTab = document.getElementById("manageGroupsTab");
 const infoTab = document.getElementById("infoTab");
 const hiddenCountSpan = document.getElementById("hiddenCount");
 
@@ -28,46 +31,38 @@ const hiddenDealsList = document.getElementById("hiddenDealsList");
 const noHiddenDeals = document.getElementById("noHiddenDeals");
 const statisticsList = document.getElementById("statisticsList");
 const noStatisticsData = document.getElementById("noStatisticsData");
+const manageGroupsList = document.getElementById("manageGroupsList");
+const noManageGroupsData = document.getElementById("noManageGroupsData");
 const exportBtn = document.getElementById("exportBtn");
 const importBtn = document.getElementById("importBtn");
+const groupedViewBtn = document.getElementById("groupedViewBtn");
+const ungroupedViewBtn = document.getElementById("ungroupedViewBtn");
+const createStatsGroupBtn = document.getElementById("createStatsGroupBtn");
 
 // Current hidden deals data
 let currentHiddenDeals = [];
 const MYDEALZ_BASE_HOST = "mydealz.de";
 const THEME_STORAGE_KEY = "popupTheme";
-const FILTER_STORAGE_KEYS = ["filterTerms", "exceptionTerms"];
+const FILTER_STORAGE_KEYS = [
+  "filterTerms",
+  "exceptionTerms",
+  "autoSortComments",
+  "greyOutSeenDeals",
+];
 const BACKUP_FORMAT = "mydealz-filter-backup";
 const BACKUP_SCHEMA_VERSION = 2;
 const POPUP_MAX_HEIGHT_PX = 600;
 const SETTINGS_POPUP_TARGET_HEIGHT_PX = 720;
 const INFO_POPUP_TARGET_HEIGHT_PX = 740;
 const FILTER_STATS_STORAGE_KEY = "hiddenCountsByTerm";
+const STATS_GROUPS_STORAGE_KEY = "statisticsGroups";
+const STATS_VIEW_MODE_STORAGE_KEY = "statisticsViewMode";
+const DEFAULT_STATS_VIEW_MODE = "ungrouped";
 let currentTheme = "light";
-
-function setSyncStatus(state, label) {
-  if (!syncStatusBadge) return;
-
-  const resolvedState = ["ok", "error", "checking"].includes(state) ? state : "checking";
-  syncStatusBadge.classList.remove("ok", "error", "checking");
-  syncStatusBadge.classList.add(resolvedState);
-
-  if (label) {
-    syncStatusBadge.textContent = label;
-    syncStatusBadge.title = label;
-    return;
-  }
-
-  if (resolvedState === "ok") {
-    syncStatusBadge.textContent = "Sync: On";
-    syncStatusBadge.title = "Firefox Sync is active";
-  } else if (resolvedState === "error") {
-    syncStatusBadge.textContent = "Sync: Error";
-    syncStatusBadge.title = "Firefox Sync unavailable. Using local fallback";
-  } else {
-    syncStatusBadge.textContent = "Sync: ...";
-    syncStatusBadge.title = "Checking Firefox Sync status";
-  }
-}
+let currentStatisticsGroups = {};
+let currentStatisticsViewMode = DEFAULT_STATS_VIEW_MODE;
+let selectedStatisticTerms = new Set();
+let expandedStatisticGroups = new Set();
 
 function autoGrowTextarea(textarea) {
   if (!textarea) return;
@@ -249,6 +244,124 @@ function dedupeTerms(terms) {
   }
 
   return { unique, duplicates };
+}
+
+function buildStatisticsGroupId(name) {
+  const slug = normalizeTerm(name)
+    .replace(/[^\p{L}\p{N}\s-]/gu, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+  return slug || `group-${Date.now()}`;
+}
+
+function normalizeStatisticsGroups(rawGroups, availableTerms = []) {
+  const normalizedAvailableTerms = new Set(availableTerms.map((term) => normalizeTerm(term)));
+  const assignedTerms = new Set();
+  const normalizedGroups = {};
+
+  Object.entries(rawGroups || {}).forEach(([groupId, group]) => {
+    if (!groupId || !group || typeof group !== "object") return;
+    const groupName = typeof group.name === "string" ? group.name.trim() : "";
+    if (!groupName) return;
+    const groupTerms = Array.isArray(group.terms) ? group.terms : [];
+    const filteredTerms = [];
+
+    groupTerms.forEach((term) => {
+      const normalized = normalizeTerm(term);
+      if (!normalizedAvailableTerms.has(normalized) || assignedTerms.has(normalized)) return;
+      assignedTerms.add(normalized);
+      filteredTerms.push(term);
+    });
+
+    if (filteredTerms.length === 0) return;
+    normalizedGroups[groupId] = {
+      name: groupName,
+      terms: filteredTerms,
+      createdAt: Number.isInteger(group.createdAt) ? group.createdAt : Date.now(),
+    };
+  });
+
+  return normalizedGroups;
+}
+
+function getGroupedTermsSet(groups) {
+  return new Set(
+    Object.values(groups).flatMap((group) => group.terms.map((term) => normalizeTerm(term)))
+  );
+}
+
+async function loadStatisticsGroups(availableTerms = []) {
+  const syncArea = getStorageArea("sync");
+  const localArea = getStorageArea("local");
+  let rawGroups = {};
+  let rawViewMode = null;
+
+  if (syncArea) {
+    const { result, error } = await storageGet(syncArea, [
+      STATS_GROUPS_STORAGE_KEY,
+      STATS_VIEW_MODE_STORAGE_KEY,
+    ]);
+    if (!error) {
+      rawGroups = isPlainObject(result[STATS_GROUPS_STORAGE_KEY]) ? result[STATS_GROUPS_STORAGE_KEY] : {};
+      rawViewMode = result[STATS_VIEW_MODE_STORAGE_KEY];
+    }
+  }
+
+  if (Object.keys(rawGroups).length === 0 && localArea) {
+    const { result } = await storageGet(localArea, [
+      STATS_GROUPS_STORAGE_KEY,
+      STATS_VIEW_MODE_STORAGE_KEY,
+    ]);
+    rawGroups = isPlainObject(result[STATS_GROUPS_STORAGE_KEY]) ? result[STATS_GROUPS_STORAGE_KEY] : {};
+    if (!rawViewMode) rawViewMode = result[STATS_VIEW_MODE_STORAGE_KEY];
+  }
+
+  currentStatisticsGroups = normalizeStatisticsGroups(rawGroups, availableTerms);
+  const hasGroups = Object.keys(currentStatisticsGroups).length > 0;
+  currentStatisticsViewMode =
+    rawViewMode === "grouped" || rawViewMode === "ungrouped"
+      ? rawViewMode
+      : hasGroups
+      ? "grouped"
+      : DEFAULT_STATS_VIEW_MODE;
+
+  if (hasGroups && currentStatisticsViewMode !== "grouped" && !rawViewMode) {
+    currentStatisticsViewMode = "grouped";
+    await persistStatisticsGroups();
+  }
+}
+
+async function persistStatisticsGroups() {
+  const payload = {
+    [STATS_GROUPS_STORAGE_KEY]: currentStatisticsGroups,
+    [STATS_VIEW_MODE_STORAGE_KEY]: currentStatisticsViewMode,
+  };
+  const syncArea = getStorageArea("sync");
+  const localArea = getStorageArea("local");
+
+  if (syncArea) {
+    const { error } = await storageSet(syncArea, payload);
+    if (error) {
+      console.error("Error saving statistics groups to sync storage:", error);
+    }
+  }
+
+  if (localArea) {
+    const { error } = await storageSet(localArea, payload);
+    if (error) {
+      console.error("Error saving statistics groups to local storage:", error);
+    }
+  }
+}
+
+function updateStatisticsViewButtons() {
+  groupedViewBtn.classList.toggle("is-active", currentStatisticsViewMode === "grouped");
+  ungroupedViewBtn.classList.toggle("is-active", currentStatisticsViewMode === "ungrouped");
+}
+
+function updateCreateGroupButton() {
+  createStatsGroupBtn.disabled = selectedStatisticTerms.size < 2;
 }
 
 function highlightDuplicateFields(filterDuplicates, exceptionDuplicates) {
@@ -433,6 +546,36 @@ async function saveThemePreference(theme) {
   }
 }
 
+async function saveTogglePreferences() {
+  const payload = {
+    autoSortComments: autoSortCommentsCheckbox.checked,
+    greyOutSeenDeals: greyOutSeenDealsCheckbox.checked,
+  };
+  const syncArea = getStorageArea("sync");
+  const localArea = getStorageArea("local");
+  let syncError = false;
+
+  if (syncArea) {
+    const { error } = await storageSet(syncArea, payload);
+    syncError = !!error;
+    if (error) {
+      console.error("Error saving toggle preferences to sync storage:", error);
+    }
+  } else {
+    syncError = true;
+  }
+
+  if (localArea) {
+    const { error } = await storageSet(localArea, payload);
+    if (error) {
+      console.error("Error saving toggle preferences to local storage:", error);
+    }
+  }
+
+  await notifyContentScripts();
+  return { syncError };
+}
+
 /**
  * Load saved filter terms and exception terms from storage
  */
@@ -450,13 +593,13 @@ async function loadFilterTerms() {
       filterTerms = result.filterTerms || "";
       exceptionTerms = result.exceptionTerms || "";
       loadedFrom = "sync";
-      setSyncStatus("ok");
     } else if (error) {
       console.error("Error loading terms from sync storage:", error);
-      setSyncStatus("error");
     }
-  } else {
-    setSyncStatus("error", "Sync: Off");
+    if (!error) {
+      autoSortCommentsCheckbox.checked = result.autoSortComments === true;
+      greyOutSeenDealsCheckbox.checked = result.greyOutSeenDeals === true;
+    }
   }
 
   // Fallback to local if sync yielded nothing or failed.
@@ -467,6 +610,8 @@ async function loadFilterTerms() {
       exceptionTerms = result.exceptionTerms || "";
       loadedFrom = "local";
     }
+    autoSortCommentsCheckbox.checked = result.autoSortComments === true;
+    greyOutSeenDealsCheckbox.checked = result.greyOutSeenDeals === true;
   }
 
   filterTermsTextarea.value = filterTerms;
@@ -522,7 +667,12 @@ async function saveFilterTerms() {
   const dedupedExceptions = dedupeTerms(parseTerms(exceptionTermsTextarea.value));
   const filterTerms = dedupedFilters.unique.join(", ");
   const exceptionTerms = dedupedExceptions.unique.join(", ");
-  const payload = { filterTerms, exceptionTerms };
+  const payload = {
+    filterTerms,
+    exceptionTerms,
+    autoSortComments: autoSortCommentsCheckbox.checked,
+    greyOutSeenDeals: greyOutSeenDealsCheckbox.checked,
+  };
 
   const syncArea = getStorageArea("sync");
   const localArea = getStorageArea("local");
@@ -549,13 +699,9 @@ async function saveFilterTerms() {
     if (error) {
       console.error("Sync storage error:", error);
       syncError = true;
-      setSyncStatus("error");
-    } else {
-      setSyncStatus("ok");
     }
   } else {
     syncError = true;
-    setSyncStatus("error", "Sync: Off");
   }
 
   // Always save to local as a reliable mirror.
@@ -570,6 +716,8 @@ async function saveFilterTerms() {
   return {
     filterTerms,
     exceptionTerms,
+    autoSortComments: payload.autoSortComments,
+    greyOutSeenDeals: payload.greyOutSeenDeals,
     storage: !syncError ? "sync" : "local",
     syncError,
     localError,
@@ -677,6 +825,8 @@ async function handleImportFilters(file) {
       displayHiddenDeals();
     } else if (statisticsTab.classList.contains("active")) {
       displayFilterStatistics();
+    } else if (manageGroupsTab.classList.contains("active")) {
+      renderManageGroupsTab();
     }
 
     const importedTotal = mergedFilters.importedCount + mergedExceptions.importedCount;
@@ -881,6 +1031,12 @@ async function displayHiddenDeals() {
 async function displayFilterStatistics() {
   const dedupedFilterTerms = dedupeTerms(parseTerms(filterTermsTextarea.value)).unique;
   statisticsList.innerHTML = "";
+  selectedStatisticTerms.forEach((term) => {
+    if (!dedupedFilterTerms.some((entry) => normalizeTerm(entry) === normalizeTerm(term))) {
+      selectedStatisticTerms.delete(term);
+    }
+  });
+  updateCreateGroupButton();
 
   if (dedupedFilterTerms.length === 0) {
     noStatisticsData.textContent = "Add filter terms in Settings to view statistics.";
@@ -898,12 +1054,15 @@ async function displayFilterStatistics() {
     }
   }
 
+  await loadStatisticsGroups(dedupedFilterTerms);
+  updateStatisticsViewButtons();
+
   const rankedStats = dedupedFilterTerms
     .map((term) => {
       const normalizedKey = normalizeTerm(term);
       const rawEntry = storedStats[normalizedKey];
       const count = Number.isInteger(rawEntry?.count) ? rawEntry.count : 0;
-      return { term, count };
+      return { term, count, normalizedKey };
     })
     .sort((a, b) => b.count - a.count || a.term.localeCompare(b.term));
 
@@ -915,13 +1074,26 @@ async function displayFilterStatistics() {
   }
 
   noStatisticsData.style.display = "none";
-  rankedStats.forEach((entry, index) => {
+  const groupedTerms = getGroupedTermsSet(currentStatisticsGroups);
+  let visibleRowCount = 0;
+
+  const renderSelectableRow = (entry, index, isChild = false) => {
     const statRow = document.createElement("div");
-    statRow.className = "stats-item";
+    statRow.className = `stats-item is-selectable${isChild ? " is-child" : ""}`;
 
     const rank = document.createElement("span");
     rank.className = "stats-rank";
     rank.textContent = `${index + 1}`;
+
+    const selector = document.createElement("input");
+    selector.className = "stats-selector";
+    selector.type = "checkbox";
+    selector.checked = selectedStatisticTerms.has(entry.term);
+    selector.addEventListener("change", () => {
+      if (selector.checked) selectedStatisticTerms.add(entry.term);
+      else selectedStatisticTerms.delete(entry.term);
+      updateCreateGroupButton();
+    });
 
     const termLabel = document.createElement("span");
     termLabel.className = "stats-term";
@@ -932,12 +1104,215 @@ async function displayFilterStatistics() {
     countLabel.textContent = `${entry.count} hidden`;
 
     statRow.appendChild(rank);
+    statRow.appendChild(selector);
     statRow.appendChild(termLabel);
     statRow.appendChild(countLabel);
     statisticsList.appendChild(statRow);
-  });
+    visibleRowCount++;
+  };
 
-  updatePopupSizingForStatisticsCount(rankedStats.length);
+  if (currentStatisticsViewMode === "grouped" && Object.keys(currentStatisticsGroups).length > 0) {
+    const groupedEntries = Object.entries(currentStatisticsGroups)
+      .map(([groupId, group]) => {
+        const members = rankedStats.filter((entry) =>
+          group.terms.some((term) => normalizeTerm(term) === entry.normalizedKey)
+        );
+        const count = members.reduce((sum, entry) => sum + entry.count, 0);
+        return { groupId, group, count, members };
+      })
+      .sort((a, b) => b.count - a.count || a.group.name.localeCompare(b.group.name));
+
+    groupedEntries.forEach((entry, index) => {
+      const statRow = document.createElement("div");
+      statRow.className = "stats-item is-group";
+
+      const rank = document.createElement("span");
+      rank.className = "stats-rank";
+      rank.textContent = `${index + 1}`;
+
+      const termLabel = document.createElement("span");
+      termLabel.className = "stats-term";
+      termLabel.textContent = entry.group.name;
+
+      const metaLabel = document.createElement("span");
+      metaLabel.className = "stats-meta";
+      metaLabel.textContent = `${entry.members.length} terms`;
+
+      const countLabel = document.createElement("span");
+      countLabel.className = "stats-count";
+      countLabel.textContent = `${entry.count} hidden`;
+
+      const toggleBtn = document.createElement("button");
+      toggleBtn.className = "stats-group-toggle";
+      toggleBtn.type = "button";
+      const expanded = expandedStatisticGroups.has(entry.groupId);
+      toggleBtn.textContent = expanded ? "Hide" : "Show";
+      toggleBtn.addEventListener("click", () => {
+        if (expandedStatisticGroups.has(entry.groupId)) expandedStatisticGroups.delete(entry.groupId);
+        else expandedStatisticGroups.add(entry.groupId);
+        displayFilterStatistics();
+      });
+
+      statRow.appendChild(rank);
+      statRow.appendChild(termLabel);
+      statRow.appendChild(metaLabel);
+      statRow.appendChild(countLabel);
+      statRow.appendChild(toggleBtn);
+      statisticsList.appendChild(statRow);
+      visibleRowCount++;
+
+      if (expanded) {
+        entry.members.forEach((member, memberIndex) => {
+          renderSelectableRow(member, memberIndex + 1, true);
+        });
+      }
+    });
+
+    rankedStats
+      .filter((entry) => !groupedTerms.has(entry.normalizedKey))
+      .forEach((entry, index) => renderSelectableRow(entry, index + 1, false));
+  } else {
+    rankedStats.forEach((entry, index) => renderSelectableRow(entry, index));
+  }
+
+  updatePopupSizingForStatisticsCount(visibleRowCount);
+}
+
+async function renderManageGroupsTab() {
+  const availableTerms = dedupeTerms(parseTerms(filterTermsTextarea.value)).unique;
+  await loadStatisticsGroups(availableTerms);
+  manageGroupsList.innerHTML = "";
+  const groupedTerms = getGroupedTermsSet(currentStatisticsGroups);
+  const ungroupedTerms = availableTerms.filter((term) => !groupedTerms.has(normalizeTerm(term)));
+
+  const groupEntries = Object.entries(currentStatisticsGroups);
+  if (groupEntries.length === 0) {
+    noManageGroupsData.style.display = "block";
+    return;
+  }
+
+  noManageGroupsData.style.display = "none";
+  groupEntries
+    .sort((a, b) => a[1].name.localeCompare(b[1].name))
+    .forEach(([groupId, group]) => {
+      const card = document.createElement("section");
+      card.className = "group-card";
+
+      const header = document.createElement("div");
+      header.className = "group-card-header";
+
+      const title = document.createElement("div");
+      title.className = "group-card-title";
+      title.textContent = `${group.name} (${group.terms.length})`;
+
+      const actions = document.createElement("div");
+      actions.className = "group-card-actions";
+
+      const renameBtn = document.createElement("button");
+      renameBtn.className = "btn btn-secondary";
+      renameBtn.type = "button";
+      renameBtn.textContent = "Rename";
+      renameBtn.addEventListener("click", async () => {
+        const nextName = window.prompt("Rename group", group.name);
+        if (!nextName || !nextName.trim()) return;
+        currentStatisticsGroups[groupId].name = nextName.trim();
+        await persistStatisticsGroups();
+        await renderManageGroupsTab();
+        if (statisticsTab.classList.contains("active")) await displayFilterStatistics();
+      });
+
+      const deleteBtn = document.createElement("button");
+      deleteBtn.className = "btn btn-secondary";
+      deleteBtn.type = "button";
+      deleteBtn.textContent = "Delete";
+      deleteBtn.addEventListener("click", async () => {
+        delete currentStatisticsGroups[groupId];
+        if (Object.keys(currentStatisticsGroups).length === 0) {
+          currentStatisticsViewMode = DEFAULT_STATS_VIEW_MODE;
+        }
+        await persistStatisticsGroups();
+        await renderManageGroupsTab();
+        if (statisticsTab.classList.contains("active")) await displayFilterStatistics();
+      });
+
+      actions.appendChild(renameBtn);
+      actions.appendChild(deleteBtn);
+      header.appendChild(title);
+      header.appendChild(actions);
+
+      const termsWrap = document.createElement("div");
+      termsWrap.className = "group-card-terms";
+
+      group.terms.forEach((term) => {
+        const chip = document.createElement("span");
+        chip.className = "group-term-chip";
+        chip.textContent = term;
+
+        const removeBtn = document.createElement("button");
+        removeBtn.className = "group-term-remove";
+        removeBtn.type = "button";
+        removeBtn.textContent = "x";
+        removeBtn.addEventListener("click", async () => {
+          currentStatisticsGroups[groupId].terms = currentStatisticsGroups[groupId].terms.filter(
+            (entry) => normalizeTerm(entry) !== normalizeTerm(term)
+          );
+          if (currentStatisticsGroups[groupId].terms.length === 0) {
+            delete currentStatisticsGroups[groupId];
+          }
+          if (Object.keys(currentStatisticsGroups).length === 0) {
+            currentStatisticsViewMode = DEFAULT_STATS_VIEW_MODE;
+          }
+          await persistStatisticsGroups();
+          await renderManageGroupsTab();
+          if (statisticsTab.classList.contains("active")) await displayFilterStatistics();
+        });
+
+        chip.appendChild(removeBtn);
+        termsWrap.appendChild(chip);
+      });
+
+      const addRow = document.createElement("div");
+      addRow.className = "group-card-add";
+
+      const addSelect = document.createElement("select");
+      addSelect.className = "group-add-select";
+
+      const placeholder = document.createElement("option");
+      placeholder.value = "";
+      placeholder.textContent = ungroupedTerms.length > 0 ? "Add ungrouped term..." : "No ungrouped terms left";
+      addSelect.appendChild(placeholder);
+
+      ungroupedTerms.forEach((term) => {
+        const option = document.createElement("option");
+        option.value = term;
+        option.textContent = term;
+        addSelect.appendChild(option);
+      });
+
+      const addBtn = document.createElement("button");
+      addBtn.className = "btn btn-secondary";
+      addBtn.type = "button";
+      addBtn.textContent = "Add Term";
+      addBtn.disabled = ungroupedTerms.length === 0;
+      addBtn.addEventListener("click", async () => {
+        if (!addSelect.value) return;
+        const nextTerm = addSelect.value;
+        currentStatisticsGroups[groupId].terms.push(nextTerm);
+        currentStatisticsGroups = normalizeStatisticsGroups(currentStatisticsGroups, availableTerms);
+        await persistStatisticsGroups();
+        await renderManageGroupsTab();
+        if (statisticsTab.classList.contains("active")) await displayFilterStatistics();
+        showStatus(`Added "${nextTerm}" to ${group.name}.`, "success");
+      });
+
+      addRow.appendChild(addSelect);
+      addRow.appendChild(addBtn);
+
+      card.appendChild(header);
+      card.appendChild(termsWrap);
+      card.appendChild(addRow);
+      manageGroupsList.appendChild(card);
+    });
 }
 
 /**
@@ -965,6 +1340,11 @@ function switchTab(tabName) {
     infoTab.classList.add("active");
     infoTabBtn.classList.add("active");
     applyFixedPopupHeight(INFO_POPUP_TARGET_HEIGHT_PX);
+  } else if (tabName === "manageGroups") {
+    manageGroupsTab.classList.add("active");
+    manageGroupsTabBtn.classList.add("active");
+    renderManageGroupsTab();
+    applyFixedPopupHeight(SETTINGS_POPUP_TARGET_HEIGHT_PX);
   } else if (tabName === 'statistics') {
     statisticsTab.classList.add('active');
     statisticsTabBtn.classList.add('active');
@@ -1025,6 +1405,8 @@ saveBtn.addEventListener("click", async () => {
       displayHiddenDeals();
     } else if (statisticsTab.classList.contains("active")) {
       displayFilterStatistics();
+    } else if (manageGroupsTab.classList.contains("active")) {
+      renderManageGroupsTab();
     }
   } catch (error) {
     console.error("Error saving filters:", error);
@@ -1047,6 +1429,26 @@ themeToggleBtn.addEventListener("click", async () => {
   await saveThemePreference(nextTheme);
 });
 
+autoSortCommentsCheckbox.addEventListener("change", async () => {
+  const { syncError } = await saveTogglePreferences();
+  showStatus(
+    `Auto-sort comments ${autoSortCommentsCheckbox.checked ? "enabled" : "disabled"}.${
+      syncError ? " Saved locally." : ""
+    }`,
+    syncError ? "error" : "success"
+  );
+});
+
+greyOutSeenDealsCheckbox.addEventListener("change", async () => {
+  const { syncError } = await saveTogglePreferences();
+  showStatus(
+    `Grey out seen deals ${greyOutSeenDealsCheckbox.checked ? "enabled" : "disabled"}.${
+      syncError ? " Saved locally." : ""
+    }`,
+    syncError ? "error" : "success"
+  );
+});
+
 /**
  * Tab button event listeners
  */
@@ -1062,8 +1464,62 @@ statisticsTabBtn.addEventListener("click", () => {
   switchTab("statistics");
 });
 
+manageGroupsTabBtn.addEventListener("click", () => {
+  switchTab("manageGroups");
+});
+
 infoTabBtn.addEventListener("click", () => {
   switchTab("info");
+});
+
+groupedViewBtn.addEventListener("click", async () => {
+  currentStatisticsViewMode = "grouped";
+  await persistStatisticsGroups();
+  await displayFilterStatistics();
+});
+
+ungroupedViewBtn.addEventListener("click", async () => {
+  currentStatisticsViewMode = "ungrouped";
+  await persistStatisticsGroups();
+  await displayFilterStatistics();
+});
+
+createStatsGroupBtn.addEventListener("click", async () => {
+  const selectedTerms = Array.from(selectedStatisticTerms);
+  if (selectedTerms.length < 2) return;
+
+  const groupName = window.prompt("Name your statistics group");
+  if (!groupName || !groupName.trim()) return;
+
+  const nextGroupIdBase = buildStatisticsGroupId(groupName);
+  let nextGroupId = nextGroupIdBase;
+  let duplicateIndex = 2;
+  while (currentStatisticsGroups[nextGroupId]) {
+    nextGroupId = `${nextGroupIdBase}-${duplicateIndex}`;
+    duplicateIndex++;
+  }
+
+  const groupedTerms = getGroupedTermsSet(currentStatisticsGroups);
+  const availableSelection = selectedTerms.filter((term) => !groupedTerms.has(normalizeTerm(term)));
+  if (availableSelection.length < 2) {
+    showStatus("Select at least 2 ungrouped terms.", "error");
+    return;
+  }
+
+  currentStatisticsGroups[nextGroupId] = {
+    name: groupName.trim(),
+    terms: availableSelection,
+    createdAt: Date.now(),
+  };
+  currentStatisticsViewMode = "grouped";
+  selectedStatisticTerms.clear();
+  expandedStatisticGroups.add(nextGroupId);
+  await persistStatisticsGroups();
+  await displayFilterStatistics();
+  if (manageGroupsTab.classList.contains("active")) {
+    await renderManageGroupsTab();
+  }
+  showStatus(`Created group ${groupName.trim()}.`, "success");
 });
 
 /**
@@ -1071,7 +1527,6 @@ infoTabBtn.addEventListener("click", () => {
  */
 async function init() {
   displayExtensionVersion();
-  setSyncStatus("checking");
   await loadThemePreference();
   setupClickToEditKeywordFields();
 

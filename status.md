@@ -1,10 +1,76 @@
 # Project Status - mydealz-filter-firefox-extension
 
 ## Current Status
-- Version 1.0.5 released and pushed to GitHub.
+- Version 1.0.6 release prep in progress on 2026-03-07.
 - Full backup feature added: export/import now covers all storage data.
+- Version 1.0.6 implementation started locally on 2026-03-07.
+- Implemented first 1.0.6 block: Feature 1 complete, Feature 2 and 3 initial implementation complete.
+- Implemented second 1.0.6 block: Feature 4 complete, Feature 5 initial implementation complete with grouped view default.
 
 ## Recent Changes
+- **1.0.6 Implementation Block 1 (2026-03-07):**
+  - Removed sync status badge UI from both `src/options.html` and `src/popup.html`.
+  - Removed sync badge styling and dead sync badge logic from `src/options.css`, `src/popup.css`, `src/options.js`, and `src/popup.js`.
+  - Added new preference toggles in Options and Popup for `autoSortComments` and `greyOutSeenDeals`.
+  - Extended settings save/load logic so both toggles persist through `chrome.storage.sync` and `chrome.storage.local`.
+  - Added content script support for automatic comment sorting on deal detail pages with retry logic and selector fallbacks.
+  - Added content script support for tracking seen deal URLs locally for 30 days with automatic cleanup and max-entry trimming.
+  - Added grey-out styling for previously seen deals while keeping deals clickable.
+  - Deal detail pages now mark the current deal as seen when grey-out is enabled.
+  - Reduced initial content-script startup delay to ~450ms on list pages and ~150ms on deal detail pages.
+  - `filtersChanged` refresh now also reapplies 1.0.6 behavior, not just keyword hiding.
+- **1.0.6 Implementation Block 2 (2026-03-07):**
+  - Added full filter category management UI to `src/options.html` and `src/options.css`.
+  - Implemented category storage + normalization in `src/options.js` using:
+    - `filterTermCategories`
+    - `categoryStates`
+  - Added drag-and-drop movement of filter terms between categories.
+  - Added category create, delete, enable-all, disable-all, and active summary handling.
+  - Content script now derives active filter terms from enabled categories instead of using the raw filter term list only.
+  - Added popup statistics toolbar with grouped/ungrouped toggle and create-group action.
+  - Added new popup tab: `Manage Groups`.
+  - Implemented statistics group storage in `src/popup.js` using:
+    - `statisticsGroups`
+    - `statisticsViewMode`
+  - Grouped statistics view now becomes the default automatically once groups exist.
+  - Manage Groups tab supports rename, delete, and term removal.
+- **1.0.6 Implementation Block 3 (2026-03-07):**
+  - Added ability in popup `Manage Groups` tab to add an ungrouped term directly to an existing statistics group.
+  - Preference toggles for `autoSortComments` and `greyOutSeenDeals` now save immediately on checkbox change in both popup and options UI.
+  - `Save Filters` is still required for text-area term edits, but no longer required for the two feature toggles.
+- **1.0.6 Implementation Block 4 (2026-03-07):**
+  - Added third immediate-save preference toggle: `Collapse seen deals`.
+  - Seen deals can now be shown in two separate modes:
+    - `Grey out seen deals`
+    - `Collapse seen deals`
+  - Collapse mode is active on list/category pages only and keeps detail pages untouched.
+  - Collapsed seen deals now render as a compact mydealz-colored summary row with:
+    - title
+    - votes/temperature
+    - posted date
+  - Hover or focus expands the deal back into its original full layout.
+  - Reduced action-button font size for popup statistics group controls so `Rename`, `Delete`, and `Add Term` match the surrounding UI typography better.
+- **1.0.6 Implementation Block 5 (2026-03-07):**
+  - Changed collapsed seen deals to stay collapsed until the user explicitly clicks the new expand control.
+  - Added a dedicated `↓ Uncollapse Deal` button in the collapsed summary row.
+  - Adjusted collapsed summary colors so the card background stays visually close to the normal page style while the title switches to mydealz-like green.
+  - Reduced popup statistics toolbar font sizing so `Grouped`, `Ungrouped`, and `Create Group` match the rest of the tab better.
+  - Reduced term/select typography inside the Statistics tab for a more consistent overall scale.
+- **1.0.6 Implementation Block 6 (2026-03-07):**
+  - Disabled keyword-based hiding on mydealz search result pages under `/search`.
+  - Removed the `Collapse seen deals` feature from popup, options, and content-script runtime handling.
+  - Updated `Grey out seen deals` copy to reflect delayed seen-tracking behavior.
+  - Changed seen-deal tracking so list-page deals are only marked as seen after they have entered the viewport and then leave it again.
+  - Changed deal-detail-page seen tracking so a deal is only marked as seen when the user leaves/closes the page.
+  - Added viewport tracking with `IntersectionObserver` for delayed seen-state persistence.
+- **1.0.6 Implementation Block 7 (2026-03-07):**
+  - Disabled seen-deal grey-out on `/search`, `/alerts`, and `/profile` pages.
+  - Kept keyword filtering disabled on `/search` while leaving other supported listing pages unchanged.
+- **1.0.6 Implementation Block 8 (2026-03-07):**
+  - Removed the hover-effect softening on greyed-out deals; greyed cards now stay fully grey on mouse-over.
+  - Built the latest local extension artifact again with `web-ext build`.
+  - Pushed the current XPI artifact to the connected Android phone at `/sdcard/Download/mydealz.de_filter-1.0.5.xpi`.
+  - Direct Android install via `web-ext run` is currently blocked because Firefox remote debugging is not enabled on the device.
 - **Import Compatibility Fix:**
   - Replaced `file.text()` with `FileReader` for better support across older browsers/Android.
   - Added "Reading file..." status message to provide immediate feedback.
@@ -38,6 +104,42 @@
   - `node --check src/popup.js` passed.
   - `node --check src/content-script.js` passed.
   - `npx web-ext lint` passed (0 errors, 0 warnings).
+  - 1.0.6 block 1 validation on 2026-03-07:
+    - `node --check src/options.js` passed.
+    - `node --check src/popup.js` passed.
+    - `node --check src/content-script.js` passed.
+    - `npx web-ext lint` passed (0 errors, 0 warnings).
+  - 1.0.6 block 2 validation on 2026-03-07:
+    - `node --check src/options.js` passed.
+    - `node --check src/popup.js` passed.
+    - `node --check src/content-script.js` passed.
+    - `npx web-ext lint` passed (0 errors, 0 warnings).
+  - 1.0.6 block 3 validation on 2026-03-07:
+    - `node --check src/options.js` passed.
+    - `node --check src/popup.js` passed.
+    - `npx web-ext lint` passed (0 errors, 0 warnings).
+  - 1.0.6 block 4 validation on 2026-03-07:
+    - `node --check src/options.js` passed.
+    - `node --check src/popup.js` passed.
+    - `node --check src/content-script.js` passed.
+    - `npx web-ext lint` passed (0 errors, 0 warnings).
+  - 1.0.6 block 5 validation on 2026-03-07:
+    - `node --check src/content-script.js` passed.
+    - `node --check src/popup.js` passed.
+    - `npx web-ext lint` passed (0 errors, 0 warnings).
+  - 1.0.6 block 6 validation on 2026-03-07:
+    - `node --check src/content-script.js` passed.
+    - `node --check src/options.js` passed.
+    - `node --check src/popup.js` passed.
+    - `npx web-ext lint` passed (0 errors, 0 warnings).
+  - 1.0.6 block 7 validation on 2026-03-07:
+    - `node --check src/content-script.js` passed.
+    - `npx web-ext lint` passed (0 errors, 0 warnings).
+  - 1.0.6 block 8 validation on 2026-03-07:
+    - `node --check src/content-script.js` passed.
+    - `npx web-ext lint` passed (0 errors, 0 warnings).
+    - `npx web-ext build --overwrite-dest` passed.
+    - `adb push` to Android phone passed.
 - **Release Prep (2026-03-01):**
   - `manifest.json` bumped to `1.0.5`.
   - `README.md` version line updated to `1.0.5`.
@@ -46,6 +148,14 @@
   - Generated local debug artifact:
     - `web-ext-artifacts/mydealz.de_filter-1.0.5.zip`
     - `web-ext-artifacts/mydealz.de_filter-1.0.5.xpi` (zip copy for install convenience)
+- **Release Prep (2026-03-07):**
+  - `manifest.json` bumped to `1.0.6`.
+  - `README.md` version line updated to `1.0.6`.
+  - Added `CHANGELOG.md` entry for `1.0.6`.
+  - Built package with `npx web-ext build --overwrite-dest`.
+  - Generated local release artifacts:
+    - `web-ext-artifacts/mydealz.de_filter-1.0.6.zip`
+    - `web-ext-artifacts/mydealz.de_filter-1.0.6.xpi`
 - **GitHub:**
   - Committed release changes:
     - Commit: `4d25627`
@@ -59,6 +169,20 @@
   - Content script fallback logic.
 
 ## Next Steps
-- Connect Android phone (USB debugging enabled) or ADB-over-WiFi target.
-- Push/install debug build to Firefox Nightly.
+- Manually verify comment autosort on `/deals/*` pages in Firefox.
+- Manually verify grey-out behavior after a deal leaves the viewport and after revisiting the same deal.
+- Manually verify that `/search` pages do not hide keyword matches or grey out seen deals anymore.
+- Manually verify that `/alerts` and `/profile` pages do not grey out deals anymore.
+- Manually verify that leaving a deal detail page marks the deal as seen.
+- Android install follow-up:
+  - Enable Firefox Android `Remote Debugging via USB` if direct `web-ext run` deployment should work.
+  - Or install/open the pushed XPI manually from `/sdcard/Download/mydealz.de_filter-1.0.5.xpi`.
+- Manually verify drag-and-drop category assignment in Options.
+- Manually verify grouped statistics flow in Popup:
+  - select 2+ terms
+  - create group
+  - add ungrouped term to existing group
+  - grouped view auto-default
+  - rename/delete/remove in Manage Groups
+- Optional later: Android Nightly validation once a device is connected.
 --- End of content ---

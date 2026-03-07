@@ -12,7 +12,6 @@
         <div class="header-row">
           <h1>mydealz.de Filter</h1>
           <div class="header-controls">
-            <span id="syncStatusBadge" class="sync-status checking" aria-live="polite">Sync: ...</span>
             <button id="themeToggleBtn" class="theme-toggle" type="button" title="Toggle theme">Dark</button>
           </div>
         </div>
@@ -23,6 +22,7 @@
       <div class="tab-nav">
         <button id="hiddenPostsTabBtn" class="tab-btn active">Hidden Posts (<span id="hiddenCount">0</span>)</button>
         <button id="statisticsTabBtn" class="tab-btn">Statistics</button>
+        <button id="manageGroupsTabBtn" class="tab-btn">Manage Groups</button>
         <button id="settingsTabBtn" class="tab-btn">Settings</button>
         <button id="infoTabBtn" class="tab-btn">Info</button>
       </div>
@@ -70,6 +70,25 @@
           Import opens the Options page. There, click Import again.
         </p>
 
+        <div class="preferences-section">
+          <h3>Preferences</h3>
+          <label class="toggle-card" for="autoSortComments">
+            <span class="toggle-copy">
+              <span class="toggle-title">Auto-sort comments</span>
+              <span class="toggle-description">Set comment sorting to "am hilfreichsten" on deal pages.</span>
+            </span>
+            <input id="autoSortComments" type="checkbox" />
+          </label>
+
+          <label class="toggle-card" for="greyOutSeenDeals">
+            <span class="toggle-copy">
+              <span class="toggle-title">Grey out seen deals</span>
+              <span class="toggle-description">Fade repeated deals after they leave the viewport or after you leave the deal page.</span>
+            </span>
+            <input id="greyOutSeenDeals" type="checkbox" />
+          </label>
+        </div>
+
         <div class="info-section">
           <h3>How to use:</h3>
           <ol>
@@ -92,9 +111,24 @@
 
       <!-- Statistics Tab Content -->
       <div id="statisticsTab" class="tab-content">
+        <div class="statistics-toolbar">
+          <div class="view-toggle" role="group" aria-label="Statistics view mode">
+            <button id="groupedViewBtn" class="btn btn-secondary view-mode-btn" type="button">Grouped</button>
+            <button id="ungroupedViewBtn" class="btn btn-secondary view-mode-btn" type="button">Ungrouped</button>
+          </div>
+          <button id="createStatsGroupBtn" class="btn btn-primary" type="button" disabled>Create Group</button>
+        </div>
         <div id="statisticsList" class="statistics-list"></div>
         <p id="noStatisticsData" class="no-statistics-data">
           No statistics yet. Browse mydealz.de to build filter insights.
+        </p>
+      </div>
+
+      <!-- Manage Groups Tab Content -->
+      <div id="manageGroupsTab" class="tab-content">
+        <div id="manageGroupsList" class="manage-groups-list"></div>
+        <p id="noManageGroupsData" class="no-statistics-data">
+          No statistic groups yet. Create a group from the Statistics tab.
         </p>
       </div>
 

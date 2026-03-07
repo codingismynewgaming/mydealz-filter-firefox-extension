@@ -6,40 +6,35 @@ const importBtn = document.getElementById("importBtn");
 const importFileInput = document.getElementById("importFileInput");
 const statusDiv = document.getElementById("status");
 const optionsVersionLabel = document.getElementById("optionsVersion");
-const syncStatusBadge = document.getElementById("syncStatusBadge");
 const hiddenCountSpan = document.getElementById("hiddenCount");
-
-function setSyncStatus(state, label) {
-  if (!syncStatusBadge) return;
-
-  const resolvedState = ["ok", "error", "checking"].includes(state) ? state : "checking";
-  syncStatusBadge.classList.remove("ok", "error", "checking");
-  syncStatusBadge.classList.add(resolvedState);
-
-  if (label) {
-    syncStatusBadge.textContent = label;
-    syncStatusBadge.title = label;
-    return;
-  }
-
-  if (resolvedState === "ok") {
-    syncStatusBadge.textContent = "Sync: On";
-    syncStatusBadge.title = "Firefox Sync is active";
-  } else if (resolvedState === "error") {
-    syncStatusBadge.textContent = "Sync: Off";
-    syncStatusBadge.title = "Firefox Sync unavailable. Using local fallback";
-  } else {
-    syncStatusBadge.textContent = "Sync: ...";
-    syncStatusBadge.title = "Checking Firefox Sync status";
-  }
-}
+const autoSortCommentsCheckbox = document.getElementById("autoSortComments");
+const greyOutSeenDealsCheckbox = document.getElementById("greyOutSeenDeals");
+const newCategoryNameInput = document.getElementById("newCategoryName");
+const createCategoryBtn = document.getElementById("createCategoryBtn");
+const enableAllCategoriesBtn = document.getElementById("enableAllCategoriesBtn");
+const disableAllCategoriesBtn = document.getElementById("disableAllCategoriesBtn");
+const categorySummary = document.getElementById("categorySummary");
+const categoriesList = document.getElementById("categoriesList");
 const hiddenDealsList = document.getElementById("hiddenDealsList");
 const noHiddenDeals = document.getElementById("noHiddenDeals");
 const refreshHiddenBtn = document.getElementById("refreshHiddenBtn");
 const MYDEALZ_BASE_HOST = "mydealz.de";
-const FILTER_STORAGE_KEYS = ["filterTerms", "exceptionTerms"];
+const FILTER_STORAGE_KEYS = [
+  "filterTerms",
+  "exceptionTerms",
+  "autoSortComments",
+  "greyOutSeenDeals",
+  "filterTermCategories",
+  "categoryStates",
+];
 const BACKUP_FORMAT = "mydealz-filter-backup";
 const BACKUP_SCHEMA_VERSION = 2;
+const DEFAULT_CATEGORY_NAME = "Uncategorized";
+const FILTER_CATEGORY_STORAGE_KEY = "filterTermCategories";
+const CATEGORY_STATES_STORAGE_KEY = "categoryStates";
+let currentCategoryData = { [DEFAULT_CATEGORY_NAME]: [] };
+let currentCategoryStates = { [DEFAULT_CATEGORY_NAME]: true };
+let currentDraggedTerm = null;
 
 function displayExtensionVersion() {
   const manifest = chrome.runtime.getManifest();
@@ -159,6 +154,296 @@ function normalizeTerm(term) {
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .trim();
+}
+
+function normalizeCategoryName(name) {
+  return (name || "").trim().replace(/\s+/g, " ");
+}
+
+function isValidCategoryName(name) {
+  const normalized = normalizeCategoryName(name);
+  return /^[\p{L}\p{N}\s-]{1,50}$/u.test(normalized);
+}
+
+function cloneCategoryData(categoryData) {
+  return Object.fromEntries(
+    Object.entries(categoryData || {}).map(([categoryName, terms]) => [
+      categoryName,
+      Array.isArray(terms) ? [...terms] : [],
+    ])
+  );
+}
+
+function cloneCategoryStates(categoryStates) {
+  return { ...(categoryStates || {}) };
+}
+
+function normalizeCategoryConfiguration(rawCategories, rawStates, filterTerms) {
+  const dedupedTerms = dedupeTerms(filterTerms).unique;
+  const termLookup = new Map(
+    dedupedTerms.map((term) => [normalizeTerm(term), term])
+  );
+  const assignedTerms = new Set();
+  const normalizedCategories = {};
+
+  for (const [rawCategoryName, rawTerms] of Object.entries(rawCategories || {})) {
+    const candidateName = normalizeCategoryName(rawCategoryName);
+    if (!candidateName) continue;
+
+    const categoryName =
+      normalizeTerm(candidateName) === normalizeTerm(DEFAULT_CATEGORY_NAME)
+        ? DEFAULT_CATEGORY_NAME
+        : candidateName;
+    const safeTerms = Array.isArray(rawTerms) ? rawTerms : [];
+    const categoryTerms = [];
+
+    safeTerms.forEach((term) => {
+      const normalized = normalizeTerm(term);
+      const canonical = termLookup.get(normalized);
+      if (!canonical || assignedTerms.has(normalized)) return;
+      assignedTerms.add(normalized);
+      categoryTerms.push(canonical);
+    });
+
+    if (!normalizedCategories[categoryName]) {
+      normalizedCategories[categoryName] = categoryTerms;
+    } else {
+      normalizedCategories[categoryName].push(...categoryTerms);
+    }
+  }
+
+  const uncategorizedTerms = dedupedTerms.filter((term) => !assignedTerms.has(normalizeTerm(term)));
+  normalizedCategories[DEFAULT_CATEGORY_NAME] = normalizedCategories[DEFAULT_CATEGORY_NAME] || [];
+  uncategorizedTerms.forEach((term) => {
+    if (!normalizedCategories[DEFAULT_CATEGORY_NAME].some((entry) => normalizeTerm(entry) === normalizeTerm(term))) {
+      normalizedCategories[DEFAULT_CATEGORY_NAME].push(term);
+    }
+  });
+
+  const normalizedStates = {};
+  Object.keys(normalizedCategories).forEach((categoryName) => {
+    normalizedStates[categoryName] = rawStates?.[categoryName] !== false;
+  });
+
+  return {
+    categoryData: normalizedCategories,
+    categoryStates: normalizedStates,
+  };
+}
+
+async function loadCategoryConfigurationForTerms(filterTerms) {
+  const syncArea = getStorageArea("sync");
+  const localArea = getStorageArea("local");
+  let rawCategories = {};
+  let rawStates = {};
+
+  if (syncArea) {
+    const { result, error } = await storageGet(syncArea, [
+      FILTER_CATEGORY_STORAGE_KEY,
+      CATEGORY_STATES_STORAGE_KEY,
+    ]);
+    if (!error) {
+      rawCategories = isPlainObject(result[FILTER_CATEGORY_STORAGE_KEY])
+        ? result[FILTER_CATEGORY_STORAGE_KEY]
+        : {};
+      rawStates = isPlainObject(result[CATEGORY_STATES_STORAGE_KEY])
+        ? result[CATEGORY_STATES_STORAGE_KEY]
+        : {};
+    }
+  }
+
+  if (Object.keys(rawCategories).length === 0 && localArea) {
+    const { result } = await storageGet(localArea, [
+      FILTER_CATEGORY_STORAGE_KEY,
+      CATEGORY_STATES_STORAGE_KEY,
+    ]);
+    rawCategories = isPlainObject(result[FILTER_CATEGORY_STORAGE_KEY])
+      ? result[FILTER_CATEGORY_STORAGE_KEY]
+      : {};
+    rawStates = isPlainObject(result[CATEGORY_STATES_STORAGE_KEY])
+      ? result[CATEGORY_STATES_STORAGE_KEY]
+      : {};
+  }
+
+  return normalizeCategoryConfiguration(rawCategories, rawStates, filterTerms);
+}
+
+async function persistCategoryConfiguration(categoryData, categoryStates) {
+  currentCategoryData = cloneCategoryData(categoryData);
+  currentCategoryStates = cloneCategoryStates(categoryStates);
+  const payload = {
+    [FILTER_CATEGORY_STORAGE_KEY]: currentCategoryData,
+    [CATEGORY_STATES_STORAGE_KEY]: currentCategoryStates,
+  };
+
+  const syncArea = getStorageArea("sync");
+  const localArea = getStorageArea("local");
+  let syncError = false;
+
+  if (syncArea) {
+    const { error } = await storageSet(syncArea, payload);
+    syncError = !!error;
+    if (error) {
+      console.error("Sync storage error while saving categories:", error);
+    }
+  } else {
+    syncError = true;
+  }
+
+  if (localArea) {
+    const { error } = await storageSet(localArea, payload);
+    if (error) {
+      console.error("Local storage error while saving categories:", error);
+    }
+  }
+
+  renderCategoryGroups();
+  await notifyContentScripts();
+  return { syncError };
+}
+
+function updateCategorySummary() {
+  const categories = Object.keys(currentCategoryData);
+  const activeCount = categories.filter((categoryName) => currentCategoryStates[categoryName] !== false).length;
+  categorySummary.textContent = `${activeCount} of ${categories.length} categories active`;
+}
+
+function renderCategoryGroups() {
+  categoriesList.innerHTML = "";
+  updateCategorySummary();
+
+  Object.entries(currentCategoryData).forEach(([categoryName, terms]) => {
+    const categoryGroup = document.createElement("section");
+    categoryGroup.className = "category-group";
+    if (currentCategoryStates[categoryName] === false) {
+      categoryGroup.classList.add("is-disabled");
+    }
+    categoryGroup.dataset.categoryName = categoryName;
+
+    const header = document.createElement("div");
+    header.className = "category-header";
+
+    const titleRow = document.createElement("div");
+    titleRow.className = "category-title-row";
+
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = currentCategoryStates[categoryName] !== false;
+    checkbox.addEventListener("change", async () => {
+      currentCategoryStates[categoryName] = checkbox.checked;
+      await persistCategoryConfiguration(currentCategoryData, currentCategoryStates);
+      showStatus(
+        `${categoryName} ${checkbox.checked ? "enabled" : "disabled"}.`,
+        "success"
+      );
+    });
+
+    const title = document.createElement("span");
+    title.className = "category-label";
+    title.textContent = categoryName;
+
+    const count = document.createElement("span");
+    count.className = "category-count";
+    count.textContent = `${terms.length} term${terms.length === 1 ? "" : "s"}`;
+
+    titleRow.appendChild(checkbox);
+    titleRow.appendChild(title);
+    titleRow.appendChild(count);
+
+    const actions = document.createElement("div");
+    actions.className = "category-actions";
+
+    if (categoryName !== DEFAULT_CATEGORY_NAME) {
+      const deleteBtn = document.createElement("button");
+      deleteBtn.className = "btn btn-secondary";
+      deleteBtn.type = "button";
+      deleteBtn.textContent = "Delete";
+      deleteBtn.addEventListener("click", async () => {
+        const movedTerms = currentCategoryData[categoryName] || [];
+        currentCategoryData[DEFAULT_CATEGORY_NAME] = [
+          ...(currentCategoryData[DEFAULT_CATEGORY_NAME] || []),
+          ...movedTerms,
+        ];
+        delete currentCategoryData[categoryName];
+        delete currentCategoryStates[categoryName];
+        const normalized = normalizeCategoryConfiguration(
+          currentCategoryData,
+          currentCategoryStates,
+          dedupeTerms(parseTerms(filterTermsTextarea.value)).unique
+        );
+        await persistCategoryConfiguration(normalized.categoryData, normalized.categoryStates);
+        showStatus(`Deleted category ${categoryName}.`, "success");
+      });
+      actions.appendChild(deleteBtn);
+    }
+
+    header.appendChild(titleRow);
+    header.appendChild(actions);
+
+    const termContainer = document.createElement("div");
+    termContainer.className = "category-terms";
+
+    const setDropTargetState = (isActive) => {
+      categoryGroup.classList.toggle("is-drop-target", isActive);
+    };
+
+    termContainer.addEventListener("dragover", (event) => {
+      event.preventDefault();
+      setDropTargetState(true);
+    });
+    termContainer.addEventListener("dragleave", () => {
+      setDropTargetState(false);
+    });
+    termContainer.addEventListener("drop", async (event) => {
+      event.preventDefault();
+      setDropTargetState(false);
+      if (!currentDraggedTerm) return;
+      const { term, fromCategory } = currentDraggedTerm;
+      if (!term || !fromCategory || fromCategory === categoryName) return;
+
+      currentCategoryData[fromCategory] = (currentCategoryData[fromCategory] || []).filter(
+        (entry) => normalizeTerm(entry) !== normalizeTerm(term)
+      );
+      currentCategoryData[categoryName] = [...(currentCategoryData[categoryName] || []), term];
+      const normalized = normalizeCategoryConfiguration(
+        currentCategoryData,
+        currentCategoryStates,
+        dedupeTerms(parseTerms(filterTermsTextarea.value)).unique
+      );
+      await persistCategoryConfiguration(normalized.categoryData, normalized.categoryStates);
+      showStatus(`Moved "${term}" to ${categoryName}.`, "success");
+    });
+
+    if (terms.length === 0) {
+      const emptyText = document.createElement("p");
+      emptyText.className = "category-empty";
+      emptyText.textContent = "Drop filter terms here.";
+      termContainer.appendChild(emptyText);
+    } else {
+      terms.forEach((term) => {
+        const chip = document.createElement("span");
+        chip.className = "term-chip";
+        chip.textContent = term;
+        chip.draggable = true;
+        chip.addEventListener("dragstart", () => {
+          currentDraggedTerm = { term, fromCategory: categoryName };
+          chip.classList.add("is-dragging");
+        });
+        chip.addEventListener("dragend", () => {
+          currentDraggedTerm = null;
+          chip.classList.remove("is-dragging");
+          document.querySelectorAll(".category-group.is-drop-target").forEach((entry) => {
+            entry.classList.remove("is-drop-target");
+          });
+        });
+        termContainer.appendChild(chip);
+      });
+    }
+
+    categoryGroup.appendChild(header);
+    categoryGroup.appendChild(termContainer);
+    categoriesList.appendChild(categoryGroup);
+  });
 }
 
 function mergeUniqueTerms(existingTerms, importedTerms) {
@@ -348,20 +633,15 @@ async function restoreStorageBackup(payload) {
     if (clearError) {
       console.error("Sync storage clear error:", clearError);
       syncError = true;
-      setSyncStatus("error");
     } else {
       const { error } = await storageSet(syncArea, mergedPayload);
       if (error) {
         console.error("Sync storage restore error:", error);
         syncError = true;
-        setSyncStatus("error");
-      } else {
-        setSyncStatus("ok");
       }
     }
   } else {
     syncError = true;
-    setSyncStatus("error", "Sync: Off");
   }
 
   if (localArea) {
@@ -401,13 +681,13 @@ async function loadFilterTerms() {
       filterTerms = result.filterTerms || "";
       exceptionTerms = result.exceptionTerms || "";
       loadedFrom = "sync";
-      setSyncStatus("ok");
     } else if (error) {
       console.error("Error loading from sync storage:", error);
-      setSyncStatus("error");
     }
-  } else {
-    setSyncStatus("error", "Sync: Off");
+    if (!error) {
+      autoSortCommentsCheckbox.checked = result.autoSortComments === true;
+      greyOutSeenDealsCheckbox.checked = result.greyOutSeenDeals === true;
+    }
   }
 
   // Fallback to local if sync yielded nothing or failed.
@@ -418,11 +698,17 @@ async function loadFilterTerms() {
       exceptionTerms = result.exceptionTerms || "";
       loadedFrom = "local";
     }
+    autoSortCommentsCheckbox.checked = result.autoSortComments === true;
+    greyOutSeenDealsCheckbox.checked = result.greyOutSeenDeals === true;
   }
 
   filterTermsTextarea.value = filterTerms;
   exceptionTermsTextarea.value = exceptionTerms;
   autoGrowKeywordTextareas();
+  const categoryConfig = await loadCategoryConfigurationForTerms(parseTerms(filterTerms));
+  currentCategoryData = categoryConfig.categoryData;
+  currentCategoryStates = categoryConfig.categoryStates;
+  renderCategoryGroups();
   return { storage: loadedFrom };
 }
 
@@ -431,7 +717,21 @@ async function saveFilterTerms() {
   const dedupedExceptions = dedupeTerms(parseTerms(exceptionTermsTextarea.value));
   const filterTerms = dedupedFilters.unique.join(", ");
   const exceptionTerms = dedupedExceptions.unique.join(", ");
-  const payload = { filterTerms, exceptionTerms };
+  const normalizedCategoryConfig = normalizeCategoryConfiguration(
+    currentCategoryData,
+    currentCategoryStates,
+    dedupedFilters.unique
+  );
+  currentCategoryData = normalizedCategoryConfig.categoryData;
+  currentCategoryStates = normalizedCategoryConfig.categoryStates;
+  const payload = {
+    filterTerms,
+    exceptionTerms,
+    autoSortComments: autoSortCommentsCheckbox.checked,
+    greyOutSeenDeals: greyOutSeenDealsCheckbox.checked,
+    [FILTER_CATEGORY_STORAGE_KEY]: currentCategoryData,
+    [CATEGORY_STATES_STORAGE_KEY]: currentCategoryStates,
+  };
 
   const syncArea = getStorageArea("sync");
   const localArea = getStorageArea("local");
@@ -458,13 +758,9 @@ async function saveFilterTerms() {
     if (error) {
       console.error("Sync storage error:", error);
       syncError = true;
-      setSyncStatus("error");
-    } else {
-      setSyncStatus("ok");
     }
   } else {
     syncError = true;
-    setSyncStatus("error", "Sync: Off");
   }
 
   // Always save to local as a reliable mirror.
@@ -476,9 +772,13 @@ async function saveFilterTerms() {
     }
   }
 
+  renderCategoryGroups();
+
   return {
     filterTerms,
     exceptionTerms,
+    autoSortComments: payload.autoSortComments,
+    greyOutSeenDeals: payload.greyOutSeenDeals,
     storage: !syncError ? "sync" : "local",
     syncError,
     localError,
@@ -486,6 +786,36 @@ async function saveFilterTerms() {
     filterDuplicates: dedupedFilters.duplicates,
     exceptionDuplicates: dedupedExceptions.duplicates,
   };
+}
+
+async function saveTogglePreferences() {
+  const payload = {
+    autoSortComments: autoSortCommentsCheckbox.checked,
+    greyOutSeenDeals: greyOutSeenDealsCheckbox.checked,
+  };
+  const syncArea = getStorageArea("sync");
+  const localArea = getStorageArea("local");
+  let syncError = false;
+
+  if (syncArea) {
+    const { error } = await storageSet(syncArea, payload);
+    syncError = !!error;
+    if (error) {
+      console.error("Sync storage error while saving toggle preferences:", error);
+    }
+  } else {
+    syncError = true;
+  }
+
+  if (localArea) {
+    const { error } = await storageSet(localArea, payload);
+    if (error) {
+      console.error("Local storage error while saving toggle preferences:", error);
+    }
+  }
+
+  await notifyContentScripts();
+  return { syncError };
 }
 
 async function handleExportFilters() {
@@ -821,9 +1151,70 @@ refreshHiddenBtn.addEventListener("click", () => {
   displayHiddenDeals();
 });
 
+createCategoryBtn.addEventListener("click", async () => {
+  const categoryName = normalizeCategoryName(newCategoryNameInput.value);
+  if (!isValidCategoryName(categoryName)) {
+    showStatus("Category names must be 1-50 chars and use letters, numbers, spaces, or hyphens.", "error");
+    return;
+  }
+
+  if (Object.keys(currentCategoryData).some((entry) => normalizeTerm(entry) === normalizeTerm(categoryName))) {
+    showStatus("Category already exists.", "error");
+    return;
+  }
+
+  currentCategoryData[categoryName] = [];
+  currentCategoryStates[categoryName] = true;
+  await persistCategoryConfiguration(currentCategoryData, currentCategoryStates);
+  newCategoryNameInput.value = "";
+  showStatus(`Created category ${categoryName}.`, "success");
+});
+
+enableAllCategoriesBtn.addEventListener("click", async () => {
+  Object.keys(currentCategoryData).forEach((categoryName) => {
+    currentCategoryStates[categoryName] = true;
+  });
+  await persistCategoryConfiguration(currentCategoryData, currentCategoryStates);
+  showStatus("All categories enabled.", "success");
+});
+
+disableAllCategoriesBtn.addEventListener("click", async () => {
+  Object.keys(currentCategoryData).forEach((categoryName) => {
+    currentCategoryStates[categoryName] = false;
+  });
+  await persistCategoryConfiguration(currentCategoryData, currentCategoryStates);
+  showStatus("All categories disabled.", "success");
+});
+
+newCategoryNameInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    createCategoryBtn.click();
+  }
+});
+
+autoSortCommentsCheckbox.addEventListener("change", async () => {
+  const { syncError } = await saveTogglePreferences();
+  showStatus(
+    `Auto-sort comments ${autoSortCommentsCheckbox.checked ? "enabled" : "disabled"}.${
+      syncError ? " Saved locally." : ""
+    }`,
+    syncError ? "error" : "success"
+  );
+});
+
+greyOutSeenDealsCheckbox.addEventListener("change", async () => {
+  const { syncError } = await saveTogglePreferences();
+  showStatus(
+    `Grey out seen deals ${greyOutSeenDealsCheckbox.checked ? "enabled" : "disabled"}.${
+      syncError ? " Saved locally." : ""
+    }`,
+    syncError ? "error" : "success"
+  );
+});
+
 async function init() {
   displayExtensionVersion();
-  setSyncStatus("checking");
   setupClickToEditKeywordFields();
   await loadFilterTerms();
   autoGrowKeywordTextareas();

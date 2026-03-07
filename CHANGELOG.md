@@ -2,6 +2,30 @@
 
 All notable changes to this project are documented in this file.
 
+## 1.0.6 - 2026-03-07
+
+### Added
+- Auto-sort option for comments on deal detail pages.
+- Grey-out option for previously seen deals with delayed seen tracking.
+- Filter category management with drag-and-drop assignment and category enable/disable controls.
+- Statistics grouping with grouped view, manage-groups flow, and term-to-group assignment.
+
+### Changed
+- Settings toggles now save immediately for supported preference checkboxes.
+- Grouped statistics automatically become the default view once groups exist.
+- Seen deals are only marked after leaving the viewport on listing pages or after leaving a deal detail page.
+- Grey-out behavior is disabled on `/search`, `/alerts`, and `/profile`.
+- Keyword filtering is disabled on `/search`.
+
+### Removed
+- Sync status badge from popup and options UI.
+- Collapse seen-deals feature after testing showed grey-out works better.
+
+### Fixed
+- Greyed deals now stay grey on hover.
+- Search, alerts, and profile pages no longer get unwanted seen-deal grey-out behavior.
+- Popup statistics and manage-groups typography is more consistent.
+
 ## 1.0.5 - 2026-03-01
 
 ### Added

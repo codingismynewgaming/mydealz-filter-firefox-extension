@@ -22,6 +22,37 @@ const SYNC_KEY_CHUNK_PREFIX = "totalHiddenDealKeysChunk_";
 const SYNC_KEY_CHUNK_COUNT_KEY = "totalHiddenDealKeysChunkCount";
 const SYNC_TERM_COUNT_CHUNK_PREFIX = "hiddenCountsByTermChunk_";
 const SYNC_TERM_COUNT_CHUNK_COUNT_KEY = "hiddenCountsByTermChunkCount";
+const SETTINGS_STORAGE_KEYS = [
+  "filterTerms",
+  "exceptionTerms",
+  "autoSortComments",
+  "greyOutSeenDeals",
+  "filterTermCategories",
+  "categoryStates",
+];
+const AUTO_SORT_COMMENTS_KEY = "autoSortComments";
+const GREY_OUT_SEEN_DEALS_KEY = "greyOutSeenDeals";
+const SEEN_DEAL_URLS_KEY = "seenDealUrls";
+const FILTER_CATEGORY_STORAGE_KEY = "filterTermCategories";
+const CATEGORY_STATES_STORAGE_KEY = "categoryStates";
+const SEEN_DEAL_EXPIRY_MS = 30 * 24 * 60 * 60 * 1000;
+const MAX_SEEN_DEAL_ENTRIES = 500;
+const GREYED_DEAL_CLASS = "mydealz-filter-greyed";
+const GREYED_STYLE_ELEMENT_ID = "mydealz-filter-seen-deal-style";
+const SEEN_DEALS_PERSIST_DEBOUNCE_MS = 1200;
+const DEAL_LIST_INIT_DELAY_MS = 450;
+const DEAL_DETAILS_INIT_DELAY_MS = 150;
+const COMMENT_SORT_MAX_ATTEMPTS = 12;
+const COMMENT_SORT_RETRY_DELAY_MS = 350;
+const SEEN_DEAL_VISIBILITY_THRESHOLD = 0.35;
+let seenDealUrls = {};
+let persistSeenDealsTimer = null;
+let seenDealsLoaded = false;
+let seenDealObserver = null;
+let currentDetailDealState = null;
+const seenDealElementStates = new Map();
+const visibleSeenDealElements = new Set();
+const DEFAULT_CATEGORY_NAME = "Uncategorized";
 
 /**
  * Debug logging helper
@@ -33,6 +64,20 @@ function log(...args) {
 function isDealDetailsPage() {
   const pathname = (window.location && window.location.pathname) || "";
   return pathname.toLowerCase().startsWith(DEAL_DETAILS_PATH_PREFIX);
+}
+
+function isSearchResultsPage() {
+  const pathname = (window.location && window.location.pathname) || "";
+  return pathname.toLowerCase().startsWith("/search");
+}
+
+function isGreyOutExcludedPage() {
+  const pathname = ((window.location && window.location.pathname) || "").toLowerCase();
+  return (
+    pathname.startsWith("/search") ||
+    pathname.startsWith("/alerts") ||
+    pathname.startsWith("/profile")
+  );
 }
 
 function normalizeForMatch(text) {
@@ -100,6 +145,373 @@ function buildDealUniqueKey(title, url) {
   const normalizedUrl = normalizeDealUrl(url);
   if (normalizedUrl) return `url:${normalizedUrl}`;
   return `title:${normalizeDealTitle(title)}`;
+}
+
+function dedupeParsedTerms(termEntries) {
+  const seenTerms = new Set();
+  return termEntries.filter((term) => {
+    if (!term?.normalized || seenTerms.has(term.normalized)) return false;
+    seenTerms.add(term.normalized);
+    return true;
+  });
+}
+
+function getActiveFilterTermsFromCategories(filterTerms, rawCategories, rawStates) {
+  const dedupedTerms = dedupeParsedTerms(filterTerms);
+  const termLookup = new Map(dedupedTerms.map((term) => [term.normalized, term]));
+  const assignedTerms = new Set();
+  const categories = {};
+
+  Object.entries(rawCategories || {}).forEach(([categoryName, categoryTerms]) => {
+    const normalizedCategoryName = (categoryName || "").trim();
+    if (!normalizedCategoryName) return;
+    const safeCategoryName =
+      normalizeForMatch(normalizedCategoryName) === normalizeForMatch(DEFAULT_CATEGORY_NAME)
+        ? DEFAULT_CATEGORY_NAME
+        : normalizedCategoryName;
+    const safeTerms = Array.isArray(categoryTerms) ? categoryTerms : [];
+    const resolvedTerms = [];
+
+    safeTerms.forEach((term) => {
+      const normalizedTerm = normalizeForMatch(term);
+      const resolvedTerm = termLookup.get(normalizedTerm);
+      if (!resolvedTerm || assignedTerms.has(normalizedTerm)) return;
+      assignedTerms.add(normalizedTerm);
+      resolvedTerms.push(resolvedTerm);
+    });
+
+    categories[safeCategoryName] = resolvedTerms;
+  });
+
+  const uncategorizedTerms = dedupedTerms.filter((term) => !assignedTerms.has(term.normalized));
+  categories[DEFAULT_CATEGORY_NAME] = [...(categories[DEFAULT_CATEGORY_NAME] || []), ...uncategorizedTerms];
+
+  const activeTerms = [];
+  Object.entries(categories).forEach(([categoryName, categoryTerms]) => {
+    if (rawStates?.[categoryName] === false) return;
+    activeTerms.push(...categoryTerms);
+  });
+
+  return dedupeParsedTerms(activeTerms);
+}
+
+function cleanupExpiredSeenDeals(rawSeenDealUrls) {
+  const now = Date.now();
+  const entries = Object.entries(rawSeenDealUrls || {}).filter(([, timestamp]) => {
+    return Number.isInteger(timestamp) && now - timestamp < SEEN_DEAL_EXPIRY_MS;
+  });
+  entries.sort((a, b) => b[1] - a[1]);
+  const trimmedEntries = entries.slice(0, MAX_SEEN_DEAL_ENTRIES);
+  return Object.fromEntries(trimmedEntries);
+}
+
+function ensureGreyOutStyles() {
+  if (document.getElementById(GREYED_STYLE_ELEMENT_ID)) return;
+
+  const style = document.createElement("style");
+  style.id = GREYED_STYLE_ELEMENT_ID;
+  style.textContent = `
+    .${GREYED_DEAL_CLASS} {
+      opacity: 0.5 !important;
+      filter: grayscale(100%) !important;
+      transition: opacity 0.2s ease, filter 0.2s ease;
+    }
+  `;
+  document.documentElement.appendChild(style);
+}
+
+function clearSeenDealPresentation() {
+  document.querySelectorAll(`.${GREYED_DEAL_CLASS}`).forEach((element) => {
+    element.classList.remove(GREYED_DEAL_CLASS);
+    element.removeAttribute("data-greyed-since");
+    if (element.getAttribute("data-grey-tooltip") === "true") {
+      element.removeAttribute("title");
+      element.removeAttribute("data-grey-tooltip");
+    }
+  });
+}
+
+function applySeenDealStateToElement(element, seenTimestamp, seenSettings) {
+  if (!element) return;
+  const { greyOutSeenDealsEnabled } = seenSettings;
+
+  if (!Number.isInteger(seenTimestamp)) {
+    element.classList.remove(GREYED_DEAL_CLASS);
+    element.removeAttribute("data-greyed-since");
+    if (element.getAttribute("data-grey-tooltip") === "true") {
+      element.removeAttribute("title");
+      element.removeAttribute("data-grey-tooltip");
+    }
+    return;
+  }
+
+  const seenDateLabel = new Date(seenTimestamp).toLocaleDateString();
+  element.setAttribute("data-greyed-since", seenDateLabel);
+  element.setAttribute("title", `Seen on ${seenDateLabel}`);
+  element.setAttribute("data-grey-tooltip", "true");
+
+  if (greyOutSeenDealsEnabled) {
+    element.classList.add(GREYED_DEAL_CLASS);
+  } else {
+    element.classList.remove(GREYED_DEAL_CLASS);
+  }
+}
+
+function schedulePersistSeenDeals() {
+  clearTimeout(persistSeenDealsTimer);
+  persistSeenDealsTimer = setTimeout(() => {
+    chrome.storage.local.set({ [SEEN_DEAL_URLS_KEY]: seenDealUrls }, () => {
+      if (chrome.runtime.lastError) {
+        log("Error saving seen deal state to local storage:", chrome.runtime.lastError);
+      }
+    });
+  }, SEEN_DEALS_PERSIST_DEBOUNCE_MS);
+}
+
+async function loadSeenDealUrls(forceReload = false) {
+  if (seenDealsLoaded && !forceReload) {
+    return seenDealUrls;
+  }
+
+  return new Promise((resolve) => {
+    chrome.storage.local.get([SEEN_DEAL_URLS_KEY], (localResult) => {
+      const rawSeenDeals =
+        localResult &&
+        localResult[SEEN_DEAL_URLS_KEY] &&
+        typeof localResult[SEEN_DEAL_URLS_KEY] === "object"
+          ? localResult[SEEN_DEAL_URLS_KEY]
+          : {};
+
+      seenDealUrls = cleanupExpiredSeenDeals(rawSeenDeals);
+      seenDealsLoaded = true;
+
+      if (Object.keys(rawSeenDeals).length !== Object.keys(seenDealUrls).length) {
+        schedulePersistSeenDeals();
+      }
+
+      resolve(seenDealUrls);
+    });
+  });
+}
+
+function trackSeenDeal(dealKey) {
+  if (!dealKey) return { wasSeenBefore: false, seenAt: null, changed: false };
+
+  const existingTimestamp = seenDealUrls[dealKey];
+  if (Number.isInteger(existingTimestamp)) {
+    return { wasSeenBefore: true, seenAt: existingTimestamp, changed: false };
+  }
+
+  const timestamp = Date.now();
+  seenDealUrls[dealKey] = timestamp;
+  seenDealUrls = cleanupExpiredSeenDeals(seenDealUrls);
+  return { wasSeenBefore: false, seenAt: timestamp, changed: true };
+}
+
+function persistSeenDealsImmediately() {
+  chrome.storage.local.set({ [SEEN_DEAL_URLS_KEY]: seenDealUrls }, () => {
+    if (chrome.runtime.lastError) {
+      log("Error saving seen deal state to local storage:", chrome.runtime.lastError);
+    }
+  });
+}
+
+function cleanupSeenDealObserverState() {
+  if (seenDealObserver) {
+    seenDealObserver.disconnect();
+    seenDealObserver = null;
+  }
+  seenDealElementStates.clear();
+  visibleSeenDealElements.clear();
+}
+
+function ensureSeenDealObserver() {
+  if (seenDealObserver || isDealDetailsPage() || isGreyOutExcludedPage()) return;
+
+  seenDealObserver = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        const state = seenDealElementStates.get(entry.target);
+        if (!state || state.markedSeen) return;
+
+        const isVisible =
+          entry.isIntersecting && entry.intersectionRatio >= SEEN_DEAL_VISIBILITY_THRESHOLD;
+
+        if (isVisible) {
+          state.hasEnteredViewport = true;
+          visibleSeenDealElements.add(entry.target);
+          return;
+        }
+
+        const wasVisible = visibleSeenDealElements.has(entry.target);
+        visibleSeenDealElements.delete(entry.target);
+
+        if (state.hasEnteredViewport && wasVisible) {
+          const { seenAt, changed } = trackSeenDeal(state.dealKey);
+          state.markedSeen = true;
+          applySeenDealStateToElement(state.element, seenAt, {
+            greyOutSeenDealsEnabled: true,
+          });
+          if (changed) {
+            schedulePersistSeenDeals();
+          }
+        }
+      });
+    },
+    {
+      threshold: [0, SEEN_DEAL_VISIBILITY_THRESHOLD],
+    }
+  );
+}
+
+function registerSeenDealCandidate(element, dealKey) {
+  if (!element || !dealKey || isDealDetailsPage() || isGreyOutExcludedPage()) return;
+
+  ensureSeenDealObserver();
+  const existingState = seenDealElementStates.get(element);
+  if (existingState?.dealKey === dealKey) return;
+
+  if (existingState && seenDealObserver) {
+    visibleSeenDealElements.delete(element);
+    seenDealObserver.unobserve(element);
+  }
+
+  seenDealElementStates.set(element, {
+    element,
+    dealKey,
+    hasEnteredViewport: false,
+    markedSeen: false,
+  });
+
+  if (seenDealObserver) {
+    seenDealObserver.observe(element);
+  }
+}
+
+function flushSeenDealCandidatesOnExit() {
+  let changed = false;
+
+  visibleSeenDealElements.forEach((element) => {
+    const state = seenDealElementStates.get(element);
+    if (!state || state.markedSeen || !state.hasEnteredViewport) return;
+    const result = trackSeenDeal(state.dealKey);
+    state.markedSeen = true;
+    changed = changed || result.changed;
+  });
+
+  if (currentDetailDealState?.enabled && currentDetailDealState.dealKey) {
+    const result = trackSeenDeal(currentDetailDealState.dealKey);
+    changed = changed || result.changed;
+  }
+
+  if (changed) {
+    persistSeenDealsImmediately();
+  }
+}
+
+function isHelpfulSortLabel(text) {
+  const normalizedText = normalizeForMatch(text);
+  return (
+    normalizedText.includes("hilfreichst") ||
+    normalizedText.includes("nutzlich") ||
+    normalizedText.includes("helpful")
+  );
+}
+
+function isElementSelected(element) {
+  if (!element) return false;
+
+  if (element.selected === true) return true;
+  const ariaSelected = element.getAttribute("aria-selected");
+  const ariaChecked = element.getAttribute("aria-checked");
+  const ariaPressed = element.getAttribute("aria-pressed");
+  if (ariaSelected === "true" || ariaChecked === "true" || ariaPressed === "true") return true;
+
+  return (
+    element.classList.contains("is-selected") ||
+    element.classList.contains("selected") ||
+    element.classList.contains("active") ||
+    element.classList.contains("is-active")
+  );
+}
+
+function isVisibleElement(element) {
+  return !!element && (element.offsetParent !== null || element.getClientRects().length > 0);
+}
+
+function tryApplyHelpfulCommentSort() {
+  const allSelects = Array.from(document.querySelectorAll("select"));
+  for (const select of allSelects) {
+    const helpfulOption = Array.from(select.options || []).find((option) =>
+      isHelpfulSortLabel(option.textContent || option.label || option.value || "")
+    );
+
+    if (helpfulOption) {
+      if (select.value !== helpfulOption.value) {
+        select.value = helpfulOption.value;
+        select.dispatchEvent(new Event("input", { bubbles: true }));
+        select.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+      return true;
+    }
+  }
+
+  const clickableSelectors = [
+    "[role='option']",
+    "[role='menuitemradio']",
+    "[role='button']",
+    "button",
+    "a",
+    "label",
+  ];
+  const helpfulOption = Array.from(document.querySelectorAll(clickableSelectors.join(","))).find(
+    (element) => isVisibleElement(element) && isHelpfulSortLabel(element.textContent || "")
+  );
+
+  if (helpfulOption) {
+    if (!isElementSelected(helpfulOption)) {
+      helpfulOption.click();
+    }
+    return true;
+  }
+
+  const sortTrigger = Array.from(document.querySelectorAll("button, [role='button']")).find(
+    (element) => {
+      if (!isVisibleElement(element)) return false;
+      const normalizedText = normalizeForMatch(element.textContent || element.getAttribute("aria-label") || "");
+      return normalizedText.includes("sort") || normalizedText.includes("kommentar");
+    }
+  );
+
+  if (sortTrigger && !sortTrigger.dataset.mydealzSortOpened) {
+    sortTrigger.dataset.mydealzSortOpened = "true";
+    sortTrigger.click();
+  }
+
+  return false;
+}
+
+async function applyCommentSorting(attempt = 0) {
+  if (!isDealDetailsPage()) return;
+
+  const { [AUTO_SORT_COMMENTS_KEY]: autoSortComments } = await getRuntimeSettings();
+  if (!autoSortComments) return;
+
+  const applied = tryApplyHelpfulCommentSort();
+  if (!applied && attempt < COMMENT_SORT_MAX_ATTEMPTS) {
+    setTimeout(() => {
+      applyCommentSorting(attempt + 1);
+    }, COMMENT_SORT_RETRY_DELAY_MS);
+  }
+}
+
+async function registerCurrentDealForSeenTracking(greyOutSeenDealsEnabled) {
+  if (!isDealDetailsPage()) return;
+
+  currentDetailDealState = {
+    enabled: greyOutSeenDealsEnabled && !isGreyOutExcludedPage(),
+    dealKey: buildDealUniqueKey(document.title || "", window.location.href),
+  };
 }
 
 function chunkString(value, chunkSize) {
@@ -367,19 +779,38 @@ function incrementHiddenCountForTerm(rawTerm) {
  * Get filter terms and exception terms from storage
  * Tries sync storage first, falls back to local storage if sync is empty or fails.
  */
-async function getFilterTerms() {
+async function getRuntimeSettings() {
   return new Promise((resolve) => {
     try {
-      chrome.storage.sync.get(["filterTerms", "exceptionTerms"], (result) => {
+      chrome.storage.sync.get(SETTINGS_STORAGE_KEYS, (result) => {
         if (chrome.runtime.lastError) {
           log("Sync storage unavailable, trying local fallback:", chrome.runtime.lastError);
           // If sync fails, try local
-          chrome.storage.local.get(["filterTerms", "exceptionTerms"], (localResult) => {
+          chrome.storage.local.get(SETTINGS_STORAGE_KEYS, (localResult) => {
             const filterTerms = localResult.filterTerms || "";
             const exceptionTerms = localResult.exceptionTerms || "";
+            const parsedFilterTerms = parseTermEntries(filterTerms);
+            const resolvedCategories =
+              localResult[FILTER_CATEGORY_STORAGE_KEY] &&
+              typeof localResult[FILTER_CATEGORY_STORAGE_KEY] === "object"
+                ? localResult[FILTER_CATEGORY_STORAGE_KEY]
+                : {};
+            const resolvedCategoryStates =
+              localResult[CATEGORY_STATES_STORAGE_KEY] &&
+              typeof localResult[CATEGORY_STATES_STORAGE_KEY] === "object"
+                ? localResult[CATEGORY_STATES_STORAGE_KEY]
+                : {};
             resolve({ 
-              filterTerms: parseTermEntries(filterTerms), 
-              exceptionTerms: parseTermEntries(exceptionTerms) 
+              filterTerms: getActiveFilterTermsFromCategories(
+                parsedFilterTerms,
+                resolvedCategories,
+                resolvedCategoryStates
+              ), 
+              exceptionTerms: parseTermEntries(exceptionTerms),
+              autoSortComments: localResult[AUTO_SORT_COMMENTS_KEY] === true,
+              greyOutSeenDeals: localResult[GREY_OUT_SEEN_DEALS_KEY] === true,
+              filterTermCategories: resolvedCategories,
+              categoryStates: resolvedCategoryStates,
             });
           });
           return;
@@ -390,34 +821,96 @@ async function getFilterTerms() {
 
         // If sync is empty but we might have local data (e.g. sync failed previously)
         if (!filterTerms && !exceptionTerms) {
-          chrome.storage.local.get(["filterTerms", "exceptionTerms"], (localResult) => {
+          chrome.storage.local.get(SETTINGS_STORAGE_KEYS, (localResult) => {
             filterTerms = localResult.filterTerms || "";
             exceptionTerms = localResult.exceptionTerms || "";
+            const parsedFilterTerms = parseTermEntries(filterTerms);
+            const resolvedCategories =
+              localResult[FILTER_CATEGORY_STORAGE_KEY] &&
+              typeof localResult[FILTER_CATEGORY_STORAGE_KEY] === "object"
+                ? localResult[FILTER_CATEGORY_STORAGE_KEY]
+                : {};
+            const resolvedCategoryStates =
+              localResult[CATEGORY_STATES_STORAGE_KEY] &&
+              typeof localResult[CATEGORY_STATES_STORAGE_KEY] === "object"
+                ? localResult[CATEGORY_STATES_STORAGE_KEY]
+                : {};
             resolve({ 
-              filterTerms: parseTermEntries(filterTerms), 
-              exceptionTerms: parseTermEntries(exceptionTerms) 
+              filterTerms: getActiveFilterTermsFromCategories(
+                parsedFilterTerms,
+                resolvedCategories,
+                resolvedCategoryStates
+              ), 
+              exceptionTerms: parseTermEntries(exceptionTerms),
+              autoSortComments: localResult[AUTO_SORT_COMMENTS_KEY] === true,
+              greyOutSeenDeals: localResult[GREY_OUT_SEEN_DEALS_KEY] === true,
+              filterTermCategories: resolvedCategories,
+              categoryStates: resolvedCategoryStates,
             });
           });
           return;
         }
 
+        const parsedFilterTerms = parseTermEntries(filterTerms);
+        const resolvedCategories =
+          result[FILTER_CATEGORY_STORAGE_KEY] && typeof result[FILTER_CATEGORY_STORAGE_KEY] === "object"
+            ? result[FILTER_CATEGORY_STORAGE_KEY]
+            : {};
+        const resolvedCategoryStates =
+          result[CATEGORY_STATES_STORAGE_KEY] && typeof result[CATEGORY_STATES_STORAGE_KEY] === "object"
+            ? result[CATEGORY_STATES_STORAGE_KEY]
+            : {};
         resolve({ 
-          filterTerms: parseTermEntries(filterTerms), 
-          exceptionTerms: parseTermEntries(exceptionTerms) 
+          filterTerms: getActiveFilterTermsFromCategories(
+            parsedFilterTerms,
+            resolvedCategories,
+            resolvedCategoryStates
+          ), 
+          exceptionTerms: parseTermEntries(exceptionTerms),
+          autoSortComments: result[AUTO_SORT_COMMENTS_KEY] === true,
+          greyOutSeenDeals: result[GREY_OUT_SEEN_DEALS_KEY] === true,
+          filterTermCategories: resolvedCategories,
+          categoryStates: resolvedCategoryStates,
         });
       });
     } catch (error) {
       log("Exception getting filter terms:", error);
       // Final fallback to local
       try {
-        chrome.storage.local.get(["filterTerms", "exceptionTerms"], (localResult) => {
+        chrome.storage.local.get(SETTINGS_STORAGE_KEYS, (localResult) => {
+          const parsedFilterTerms = parseTermEntries(localResult.filterTerms || "");
+          const resolvedCategories =
+            localResult[FILTER_CATEGORY_STORAGE_KEY] &&
+            typeof localResult[FILTER_CATEGORY_STORAGE_KEY] === "object"
+              ? localResult[FILTER_CATEGORY_STORAGE_KEY]
+              : {};
+          const resolvedCategoryStates =
+            localResult[CATEGORY_STATES_STORAGE_KEY] &&
+            typeof localResult[CATEGORY_STATES_STORAGE_KEY] === "object"
+              ? localResult[CATEGORY_STATES_STORAGE_KEY]
+              : {};
           resolve({ 
-            filterTerms: parseTermEntries(localResult.filterTerms || ""), 
-            exceptionTerms: parseTermEntries(localResult.exceptionTerms || "") 
+            filterTerms: getActiveFilterTermsFromCategories(
+              parsedFilterTerms,
+              resolvedCategories,
+              resolvedCategoryStates
+            ), 
+            exceptionTerms: parseTermEntries(localResult.exceptionTerms || ""),
+            autoSortComments: localResult[AUTO_SORT_COMMENTS_KEY] === true,
+            greyOutSeenDeals: localResult[GREY_OUT_SEEN_DEALS_KEY] === true,
+            filterTermCategories: resolvedCategories,
+            categoryStates: resolvedCategoryStates,
           });
         });
       } catch (innerError) {
-        resolve({ filterTerms: [], exceptionTerms: [] });
+        resolve({
+          filterTerms: [],
+          exceptionTerms: [],
+          autoSortComments: false,
+          greyOutSeenDeals: false,
+          filterTermCategories: {},
+          categoryStates: {},
+        });
       }
     }
   });
@@ -646,12 +1139,14 @@ async function filterPostings(options = {}) {
 
   if (fullRescan) {
     clearProcessedMarkers();
+    cleanupSeenDealObserverState();
   }
 
   if (resetSession) {
     hiddenCount = 0;
     hiddenDeals = [];
     hiddenDealKeys.clear();
+    cleanupSeenDealObserverState();
   }
 
   // Do not hide anything on deal detail pages so users can open hidden deals
@@ -661,25 +1156,42 @@ async function filterPostings(options = {}) {
     hiddenDeals = [];
     hiddenDealKeys.clear();
     clearFilteredElements();
+    clearSeenDealPresentation();
     updateBadge(0);
     return;
   }
 
-  const { filterTerms, exceptionTerms } = await getFilterTerms();
+  const { filterTerms, exceptionTerms, greyOutSeenDeals } = await getRuntimeSettings();
+  const keywordFilteringEnabled = !isSearchResultsPage();
+  const greyOutEnabledOnPage = greyOutSeenDeals && !isGreyOutExcludedPage();
 
-  // If no filter terms, show everything
-  if (filterTerms.length === 0) {
+  if (greyOutEnabledOnPage) {
+    ensureGreyOutStyles();
+    await loadSeenDealUrls();
+  } else {
+    clearSeenDealPresentation();
+    cleanupSeenDealObserverState();
+  }
+
+  if (!greyOutEnabledOnPage && (!keywordFilteringEnabled || filterTerms.length === 0)) {
     hiddenCount = 0;
-    hiddenDeals = []; // Reset hidden deals array
+    hiddenDeals = [];
     hiddenDealKeys.clear();
-
-    // Show all previously hidden elements
     clearFilteredElements();
     updateBadge(0);
     return;
   }
 
   const postings = findDealPostings();
+  const hasFilterTerms = keywordFilteringEnabled && filterTerms.length > 0;
+
+  // If no filter terms, show everything but still keep seen-deal styling active.
+  if (!hasFilterTerms) {
+    hiddenCount = 0;
+    hiddenDeals = [];
+    hiddenDealKeys.clear();
+    clearFilteredElements();
+  }
 
   // Batch DOM operations for better performance
   const elementsToHide = [];
@@ -687,12 +1199,35 @@ async function filterPostings(options = {}) {
   let newlyDiscoveredUniqueDeals = 0;
 
   postings.forEach(({ element, title }) => {
-    if (matchesFilter(title, filterTerms, exceptionTerms)) {
+    const dealUrl = element.querySelector('a[href*="/deals/"]')?.href || "";
+    const dealKey = buildDealUniqueKey(title, dealUrl);
+
+    if (greyOutEnabledOnPage) {
+      const seenAt = seenDealUrls[dealKey];
+      applySeenDealStateToElement(
+        element,
+        Number.isInteger(seenAt) ? seenAt : null,
+        {
+          greyOutSeenDealsEnabled: greyOutEnabledOnPage,
+        }
+      );
+      if (!Number.isInteger(seenAt)) {
+        registerSeenDealCandidate(element, dealKey);
+      }
+    } else {
+      applySeenDealStateToElement(
+        element,
+        null,
+        {
+          greyOutSeenDealsEnabled: false,
+        }
+      );
+    }
+
+    if (hasFilterTerms && matchesFilter(title, filterTerms, exceptionTerms)) {
       const normalizedTitle = normalizeForMatch(title);
       const matchingTermEntry = findMatchingFilterTerm(normalizedTitle, filterTerms);
       const matchingTerm = matchingTermEntry ? matchingTermEntry.raw : "";
-      const dealUrl = element.querySelector('a[href*="/deals/"]')?.href || "";
-      const dealKey = buildDealUniqueKey(title, dealUrl);
 
       if (!hiddenDealKeys.has(dealKey)) {
         hiddenDealKeys.add(dealKey);
@@ -763,13 +1298,20 @@ async function updateBadge(currentCount, newHiddenCount = 0) {
   }
 }
 
+async function applyDealDetailsEnhancements() {
+  const settings = await getRuntimeSettings();
+  if (settings.greyOutSeenDeals) {
+    await loadSeenDealUrls();
+  }
+  await registerCurrentDealForSeenTracking(settings.greyOutSeenDeals);
+  await applyCommentSorting();
+}
+
 /**
  * Observe DOM changes and refilter when new postings are added
  * More efficient observer that targets specific areas
  */
 function observeChanges() {
-  if (isDealDetailsPage()) return;
-
   // Flag to prevent multiple simultaneous filter operations
   let isFiltering = false;
   
@@ -801,7 +1343,11 @@ function observeChanges() {
         if (isFiltering) return;
         isFiltering = true;
         try {
-          await filterPostings();
+          if (isDealDetailsPage()) {
+            await applyDealDetailsEnhancements();
+          } else {
+            await filterPostings();
+          }
         } finally {
           isFiltering = false;
         }
@@ -822,7 +1368,11 @@ function observeChanges() {
  */
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.type === "filtersChanged") {
-    filterPostings({ fullRescan: true, resetSession: true })
+    const refreshPromise = isDealDetailsPage()
+      ? applyDealDetailsEnhancements()
+      : filterPostings({ fullRescan: true, resetSession: true });
+
+    refreshPromise
       .then(() => sendResponse({ status: "filters applied" }))
       .catch((error) => {
         log("Error applying filters after change:", error);
@@ -834,8 +1384,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   return true; // Required to keep message channel open for async response
 });
 
-// Reset hidden deals when the page is reloaded, but preserve the total count
+// Persist seen deals at page exit and reset transient hidden-deal state.
+window.addEventListener("pagehide", () => {
+  flushSeenDealCandidatesOnExit();
+});
+
 window.addEventListener('beforeunload', () => {
+  flushSeenDealCandidatesOnExit();
   hiddenCount = 0;
   hiddenDeals = [];
   hiddenDealKeys.clear();
@@ -851,18 +1406,24 @@ async function init() {
   await loadTotalHiddenDealState();
   
   // Wait a moment for the page to fully load
+  const initialDelay = isDealDetailsPage() ? DEAL_DETAILS_INIT_DELAY_MS : DEAL_LIST_INIT_DELAY_MS;
+  const runInitialTasks = () => {
+    setTimeout(() => {
+      if (isDealDetailsPage()) {
+        applyDealDetailsEnhancements();
+      } else {
+        filterPostings({ resetSession: true });
+      }
+      observeChanges();
+    }, initialDelay);
+  };
+
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", () => {
-      setTimeout(() => {
-        filterPostings();
-        observeChanges();
-      }, 1000); // Increased delay to allow more content to load
+      runInitialTasks();
     });
   } else {
-    setTimeout(() => {
-      filterPostings();
-      observeChanges();
-    }, 1000); // Increased delay to allow more content to load
+    runInitialTasks();
   }
 }
 

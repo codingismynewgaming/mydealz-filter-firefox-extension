@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "mydealz.de Filter",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Filter mydealz.de postings by keywords in titles. Hide unwanted deals and show the number of hidden postings.",
   "permissions": [
     "storage",
