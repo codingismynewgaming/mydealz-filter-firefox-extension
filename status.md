@@ -1,7 +1,7 @@
 # Project Status - mydealz-filter-firefox-extension
 
 ## Current Status
-- Version 1.0.6 release prep in progress on 2026-03-07.
+- Version 1.0.6 released and pushed to GitHub on 2026-03-07.
 - Full backup feature added: export/import now covers all storage data.
 - Version 1.0.6 implementation started locally on 2026-03-07.
 - Implemented first 1.0.6 block: Feature 1 complete, Feature 2 and 3 initial implementation complete.
@@ -161,6 +161,11 @@
     - Commit: `4d25627`
     - Message: `chore(release): bump to 1.0.5 with full backup import/export`
   - Pushed to `origin/master`.
+  - Committed 1.0.6 release changes:
+    - Commit: `4705436`
+    - Message: `chore(release): bump to 1.0.6`
+  - Pushed `4705436` to `origin/master`.
+  - Pushed Git tag: `v1.0.6`.
 - **Android Nightly Deploy Attempt:**
   - `adb devices -l` shows no connected device/emulator.
   - Debug push to Firefox Nightly is blocked until an Android device is connected with USB debugging.
