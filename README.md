@@ -34,6 +34,7 @@ Or local install from the unsigned Zip in Release:
 - Supports exception keywords
 - Shows hidden deals in the popup
 - Shows the number of hidden deals in the badge
+- Greys out seen deals
 
 ## Privacy
 
