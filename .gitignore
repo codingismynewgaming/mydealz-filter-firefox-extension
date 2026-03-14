@@ -8,6 +8,11 @@
 *.xpi
 *.zip
 
+# Root level app files (should be in app-files/)
+manifest.json
+src/
+icons/
+
 # Dependencies
 node_modules/
 
