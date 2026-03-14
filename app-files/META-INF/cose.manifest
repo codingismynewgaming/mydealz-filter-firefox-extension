@@ -1,0 +1,102 @@
+Manifest-Version: 1.0
+
+Name: manifest.json
+Digest-Algorithms: SHA1 SHA256
+SHA1-Digest: 3RyZzMmUlqZi2mECDsnNjYfQePY=
+SHA256-Digest: fLZ6lD2SZzHzGt+u2mShiSz4I0RYwsf7Uw6y+rIC+2o=
+
+Name: CHANGELOG.md
+Digest-Algorithms: SHA1 SHA256
+SHA1-Digest: B+q8EzzZFi+pk4RrwWeoXCon1CY=
+SHA256-Digest: f934iBG5hsd9JL8bwClpa48wFs+VP67Rr7HoA0/S5VU=
+
+Name: status.md
+Digest-Algorithms: SHA1 SHA256
+SHA1-Digest: edPlNmyVEPUP4jxI+HNvZS/gRpA=
+SHA256-Digest: Go3VuMGX84WC2MJfMipujuGZshKbkIuoSMd8+LNQEXk=
+
+Name: README.md
+Digest-Algorithms: SHA1 SHA256
+SHA1-Digest: Y/9bN6yszPG4gA99tCxUtKqaI/k=
+SHA256-Digest: vhjtDGItuZkg3mR6kjmIICdho4VskqjTbsFjPSRmDOs=
+
+Name: features-1.0.6.md
+Digest-Algorithms: SHA1 SHA256
+SHA1-Digest: 2djd6nFzYjmgNsTxse8uNCv7peI=
+SHA256-Digest: 9UvXw+nuhLSVY9SX9J6mZQBjsxzAfXmrByKg9qhW3Pc=
+
+Name: amo-metadata.json
+Digest-Algorithms: SHA1 SHA256
+SHA1-Digest: Te8eKtSLMxO7i6rRu0G/IFOk2Uw=
+SHA256-Digest: oDgMHwUJYeMWHC4HDPstdPIPFGPf5eoTS6zx1QoSmlY=
+
+Name: package.json
+Digest-Algorithms: SHA1 SHA256
+SHA1-Digest: PkbiM8yuA8yE2dyJf/fxbq3BjwU=
+SHA256-Digest: tLVqrcMgYpxKix/KiyFBLMwXEJONLuoHeVReGd/hImk=
+
+Name: src/popup.js
+Digest-Algorithms: SHA1 SHA256
+SHA1-Digest: BkzONFQJrZCDPWYvJkYJDdQ4yUg=
+SHA256-Digest: 50f3BNxR4FCSvTg3e9Vy58QJAOYOrDz6I83FA08IEbk=
+
+Name: src/popup.html
+Digest-Algorithms: SHA1 SHA256
+SHA1-Digest: 8yGnneSXbJ6U588qBYM1TJ3PVv4=
+SHA256-Digest: YkzWNz80qaJDfL1myibboApuTL7NGKjleeqdhbSHbNs=
+
+Name: src/popup.css
+Digest-Algorithms: SHA1 SHA256
+SHA1-Digest: oxS+42W3haOMYa9Eq8E3lDT1mTs=
+SHA256-Digest: tQUHWT1Tj4I+0fGVby/+Ujy6qE3Yjrwn8O7Hn14m2ew=
+
+Name: src/options.css
+Digest-Algorithms: SHA1 SHA256
+SHA1-Digest: Ztud3qV+UTHwv9hwcppTrTx4IHc=
+SHA256-Digest: xOL0FRBpSEarV50ZfZPTWkANlKXqSAt1vSXHxuKWF0g=
+
+Name: src/options.js
+Digest-Algorithms: SHA1 SHA256
+SHA1-Digest: jLp+NWIcOZnEUMbz1jSVqSGQYe8=
+SHA256-Digest: NEkNCj93ek8DawLpJAdlgYsM6Jw685Yau74o09ptRIo=
+
+Name: src/content-script.js
+Digest-Algorithms: SHA1 SHA256
+SHA1-Digest: MujIl966No/EEPxGZWLVpndnPdc=
+SHA256-Digest: /ktX4w29Zc7o/8ahytE89YjiA0y8Q2sTkZkYBLFiZyY=
+
+Name: src/background.js
+Digest-Algorithms: SHA1 SHA256
+SHA1-Digest: v8t7eAtP1495UyVX2t15/hPbvzY=
+SHA256-Digest: W1Ovm7/8BLABymZqY1+47XkEUbRHwEOGrdlSyKY9Qjo=
+
+Name: src/options.html
+Digest-Algorithms: SHA1 SHA256
+SHA1-Digest: kQi3csXnsCbeSDLEgdzd5U02Uqs=
+SHA256-Digest: atBejYeDLC4q7z77vGxiSp5/zTZyTBmaspK0bHE/M/k=
+
+Name: icons/icon-48.png
+Digest-Algorithms: SHA1 SHA256
+SHA1-Digest: Iu1EfksCoDFU90XaUjMIoFHRhn8=
+SHA256-Digest: 01l4Oufa7uQSwY6/c1OhCqtMf9tKGlPwTxr2MDdnomY=
+
+Name: icons/icon-48-grey.png
+Digest-Algorithms: SHA1 SHA256
+SHA1-Digest: VIgF0+ClwTKWbUikg1NsWP2PhBE=
+SHA256-Digest: tehP4Fo9nz8bKZGf+2D+PqmO3gbfJO5gXHYAGG4NsdI=
+
+Name: icons/icon-96-grey.png
+Digest-Algorithms: SHA1 SHA256
+SHA1-Digest: GupZZTt8SxImUICUQEhyfBYFLqM=
+SHA256-Digest: KGzILb77LLPHv4nOMKmZXF9KxN8g8iVJGpqqx0Eyg1c=
+
+Name: icons/icon-96.png
+Digest-Algorithms: SHA1 SHA256
+SHA1-Digest: TlV7px7CSfMPbWDuzcNh4D902NY=
+SHA256-Digest: /JKG3hT1FyWOSmw9QYSllj9u6ZWi54zuKiljs7gpDtM=
+
+Name: scripts/release-firefox.mjs
+Digest-Algorithms: SHA1 SHA256
+SHA1-Digest: JE3Pde4mNJlQtRocE0JLd+sO3DM=
+SHA256-Digest: n6YH2W9hGqfkeXIjC61t28Gww7inY6iUc6Q2+3Vfkng=
+

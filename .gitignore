@@ -1,0 +1,29 @@
+# Internals - never commit
+/internals/
+**/internals/
+
+# Builds and artifacts
+/builds/
+/web-ext-artifacts/
+*.xpi
+*.zip
+
+# Dependencies
+node_modules/
+
+# Environment
+.env
+.env.*
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Temporary
+.tmp/
+temp/
