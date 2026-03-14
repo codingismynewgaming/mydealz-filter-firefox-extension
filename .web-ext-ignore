@@ -1,0 +1,17 @@
+node_modules/**
+.git/**
+web-ext-artifacts/**
+xpis/**
+docs/**
+jira-cli/**
+mydealz-filter-extension-v*.zip
+*.log
+*.tmp
+*.ps1
+*.md
+.web-ext-ignore
+$null
+manifest.chrome.json
+package.json
+package-lock.json
+screenshot-ui.png
