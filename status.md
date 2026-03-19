@@ -45,15 +45,26 @@
 - HTML + CSS
 
 ## Current Status
-- Version 1.0.9 **ready for submission**
+- Version 1.0.9 **committed and pushed to GitHub**
+- Mozilla AMO submission skipped (JWT authentication issue - needs fresh credentials)
 - Previous version 1.0.8 successfully submitted to Mozilla Add-ons
-- Awaiting Mozilla review and approval for 1.0.8
+
+## GitHub Repo
+- Repository: https://github.com/codingismynewgaming/mydealz-filter-firefox-extension
+- Latest commit: `a6b4235` - chore(release): v1.0.9
+- Branch: master (up to date)
+
+## AMO Submission Notes (Failed)
+- Attempted unlisted submission with stored JWT credentials
+- Failed with "Error decoding signature" - JWT secret may be expired or incorrect
+- Next attempt: Get fresh JWT credentials from AMO Developer Hub
+- Alternative: Submit manually via AMO web interface
 
 ## AMO Submission Info
 - Add-on URL: https://addons.mozilla.org/en-US/firefox/addon/mydealz-de-filter/
-- JWT Issuer: user:15554910:941
+- JWT Issuer (old): user:15554910:941
 - Credentials stored in: /internals/amo-credentials.md
-- Submission date: 2026-03-14
+- Last successful submission: 2026-03-14 (v1.0.8)
 
 ## Next Steps
 - Submit version 1.0.9 to Mozilla Add-ons
