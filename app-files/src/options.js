@@ -22,13 +22,14 @@ const noHiddenDeals = document.getElementById("noHiddenDeals");
 const refreshHiddenBtn = document.getElementById("refreshHiddenBtn");
 const MYDEALZ_BASE_HOST = "mydealz.de";
 const FILTER_STORAGE_KEYS = [
-  "filterTerms",
-  "exceptionTerms",
-  "autoSortComments",
-  "greyOutSeenDeals",
-  "greyOutOpacityPercent",
-  "filterTermCategories",
-  "categoryStates",
+    "keywordShortcut",
+    "filterTerms",
+    "exceptionTerms",
+    "autoSortComments",
+    "greyOutSeenDeals",
+    "greyOutOpacityPercent",
+    "filterTermCategories",
+    "categoryStates",
 ];
 const BACKUP_FORMAT = "mydealz-filter-backup";
 const BACKUP_SCHEMA_VERSION = 2;
@@ -63,6 +64,72 @@ function autoGrowTextarea(textarea) {
   textarea.style.overflowY = "hidden";
 }
 
+function setupKeyboardShortcutField() {
+  const keywordShortcutInput = document.getElementById("keywordShortcut");
+  const openShortcutSettingsBtn = document.getElementById("openShortcutSettingsBtn");
+
+  if (!keywordShortcutInput) return;
+
+  // Get current shortcut from browser API (shows the actual assigned shortcut)
+  if (chrome.commands && chrome.commands.getAll) {
+    chrome.commands.getAll((commands) => {
+      const command = commands.find(cmd => cmd.name === "open-keyword-dialog");
+      if (command && command.shortcut) {
+        keywordShortcutInput.value = command.shortcut;
+        // Also save to localStorage for popup usage
+        localStorage.setItem("keywordShortcut", command.shortcut);
+      } else {
+        // Fallback to localStorage or default
+        const storedShortcut = localStorage.getItem("keywordShortcut") || "Ctrl+Shift+K";
+        keywordShortcutInput.value = storedShortcut;
+      }
+    });
+  } else {
+    // Fallback for browsers without commands API
+    const storedShortcut = localStorage.getItem("keywordShortcut") || "Ctrl+Shift+K";
+    keywordShortcutInput.value = storedShortcut;
+  }
+
+  // Handle input changes - try to update via API
+  keywordShortcutInput.addEventListener("change", async () => {
+    const shortcut = keywordShortcutInput.value.trim() || "Ctrl+Shift+K";
+
+    // Send message to background script to update the shortcut
+    chrome.runtime.sendMessage({
+      type: "updateKeyboardShortcut",
+      shortcut: shortcut
+    }, (response) => {
+      if (chrome.runtime.lastError) {
+        console.error("Error updating shortcut:", chrome.runtime.lastError);
+        showStatus("Shortcut saved locally. Use the button below to set it in Firefox.", "success");
+      } else if (response && response.status === "success") {
+        localStorage.setItem("keywordShortcut", shortcut);
+        showStatus(`Keyboard shortcut updated to ${shortcut}`, "success");
+      } else {
+        localStorage.setItem("keywordShortcut", shortcut);
+        showStatus("Shortcut preference saved. Use the button below to change in Firefox.", "success");
+      }
+    });
+  });
+
+  // Handle "Open Firefox Settings" button
+  if (openShortcutSettingsBtn) {
+    openShortcutSettingsBtn.addEventListener("click", () => {
+      chrome.runtime.sendMessage({ type: "openShortcutSettings" }, (response) => {
+        if (chrome.runtime.lastError) {
+          console.error("Error opening shortcut settings:", chrome.runtime.lastError);
+          // Fallback: try to open about:addons
+          try {
+            chrome.tabs.create({ url: "about:addons" });
+          } catch (e) {
+            showStatus("Please manually open about:addons to change shortcuts", "error");
+          }
+        }
+      });
+    });
+  }
+}
+
 function autoGrowKeywordTextareas() {
   autoGrowTextarea(filterTermsTextarea);
   autoGrowTextarea(exceptionTermsTextarea);
@@ -87,6 +154,7 @@ function setupClickToEditTextarea(textarea) {
 }
 
 function setupClickToEditKeywordFields() {
+       setupClickToEditTextarea(keywordShortcutInput);
   setupClickToEditTextarea(filterTermsTextarea);
   setupClickToEditTextarea(exceptionTermsTextarea);
 }
@@ -1261,6 +1329,7 @@ if (greyOutOpacityRange) {
 }
 
 async function init() {
+       setupKeyboardShortcutField();
   displayExtensionVersion();
   setupClickToEditKeywordFields();
   await loadFilterTerms();
@@ -1271,3 +1340,8 @@ async function init() {
 }
 
 init();
+
+
+
+
+

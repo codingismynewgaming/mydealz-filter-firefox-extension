@@ -2,6 +2,37 @@
 
 All notable changes to this project are documented in this file.
 
+## 1.0.9 - 2026-03-19
+
+### Fixed
+- Fixed infinite scroll code: Was broken as string literals instead of executable code. Now properly triggers scroll on pages like /gruppe/freebies at 80% threshold.
+- Fixed icon not turning green on mydealz.de: The background.js had corrupted code with escaped newlines that prevented proper icon state management.
+- Fixed corrupted JavaScript files: options.js and background.js had `\n` string literals instead of actual newlines.
+
+### Changed
+- Completely redesigned keyboard shortcut implementation based on Mozilla documentation:
+  - Firefox requires using `chrome.commands.getAll()` to read current shortcuts
+  - Firefox requires using `chrome.commands.openShortcutSettings()` to let users change shortcuts
+  - Added proper fallback handling for browsers without full commands API support
+  - Updated UI to show current shortcut as read-only with "Change in Firefox" button
+  - Added message handlers in background.js: `updateKeyboardShortcut`, `getKeyboardShortcut`, `openShortcutSettings`
+- Redesigned keyword dialog:
+  - Changed title to "Add filter keyword"
+  - Single input field (no database display)
+  - Removed exception terms section entirely
+  - Green "Add filter terms" button saves but keeps popup open
+  - "Close" button added to close the dialog
+  - Enter key saves AND closes the popup
+  - Shows success message and clears field for next entry when clicking green button
+  - Checks for duplicates before adding
+- Fixed keyword dialog layout with proper sizing (380px width) to prevent scrolling
+- Added dark/light mode support to keyword dialog with CSS variables matching popup.css theme system
+
+### Technical
+- Updated options.html and popup.html with proper shortcut display and Firefox settings button
+- CSS variables now respect `prefers-color-scheme` media query
+- Auto-updates when system theme changes
+
 ## 1.0.8 - 2026-03-14
 
 ### Release

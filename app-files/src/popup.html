@@ -72,6 +72,27 @@
 
         <div class="preferences-section">
           <h3>Preferences</h3>
+          
+        <div class="form-group">
+          <label for="keywordShortcutPopup">Keyboard Shortcut</label>
+          <div class="shortcut-row" style="display: flex; gap: 8px; margin-bottom: 8px;">
+            <input
+              id="keywordShortcutPopup"
+              type="text"
+              class="text-input"
+              placeholder="Ctrl+Shift+K"
+              style="flex: 1; padding: 8px;"
+              readonly
+            />
+            <button id="openShortcutSettingsPopupBtn" class="btn btn-secondary" type="button" style="white-space: nowrap;">
+              Change in Firefox
+            </button>
+          </div>
+          <p class="hint" style="margin-bottom: 12px;">
+            Current shortcut to open keyword dialog. Click "Change in Firefox" to modify.
+          </p>
+        </div>
+          
           <label class="toggle-card" for="autoSortComments">
             <span class="toggle-copy">
               <span class="toggle-title">Auto-sort comments</span>

@@ -1570,24 +1570,69 @@ createStatsGroupBtn.addEventListener("click", async () => {
 });
 
 /**
- * Initialize popup by loading saved filters and setting up tabs
- */
+* Initialize popup by loading saved filters and setting up tabs
+*/
 async function init() {
-  displayExtensionVersion();
-  await loadThemePreference();
-  setupClickToEditKeywordFields();
+    displayExtensionVersion();
+    await loadThemePreference();
+    setupClickToEditKeywordFields();
+    setupKeyboardShortcutPopup();
 
-  // Load the filter terms and exception terms
-  await loadFilterTerms();
-  autoGrowKeywordTextareas();
-  filterTermsTextarea.addEventListener("input", autoGrowKeywordTextareas);
-  exceptionTermsTextarea.addEventListener("input", autoGrowKeywordTextareas);
+    // Load the filter terms and exception terms
+    await loadFilterTerms();
+    autoGrowKeywordTextareas();
+    filterTermsTextarea.addEventListener("input", autoGrowKeywordTextareas);
+    exceptionTermsTextarea.addEventListener("input", autoGrowKeywordTextareas);
 
-  // Set up initial tab state - start with hidden posts for quicker feedback.
-  switchTab('hiddenPosts');
+    // Set up initial tab state - start with hidden posts for quicker feedback.
+    switchTab('hiddenPosts');
 
-  // Ensure total hidden count is displayed.
-  await loadAndDisplayTotalHiddenCount();
+    // Ensure total hidden count is displayed.
+    await loadAndDisplayTotalHiddenCount();
+}
+
+function setupKeyboardShortcutPopup() {
+  const keywordShortcutPopup = document.getElementById("keywordShortcutPopup");
+  const openShortcutSettingsPopupBtn = document.getElementById("openShortcutSettingsPopupBtn");
+
+  if (!keywordShortcutPopup) return;
+
+  // Get current shortcut from browser API
+  if (chrome.commands && chrome.commands.getAll) {
+    chrome.commands.getAll((commands) => {
+      const command = commands.find(cmd => cmd.name === "open-keyword-dialog");
+      if (command && command.shortcut) {
+        keywordShortcutPopup.value = command.shortcut;
+        localStorage.setItem("keywordShortcut", command.shortcut);
+      } else {
+        const storedShortcut = localStorage.getItem("keywordShortcut") || "Ctrl+Shift+K";
+        keywordShortcutPopup.value = storedShortcut;
+      }
+    });
+  } else {
+    const storedShortcut = localStorage.getItem("keywordShortcut") || "Ctrl+Shift+K";
+    keywordShortcutPopup.value = storedShortcut;
+  }
+
+  // Make input read-only since shortcuts should be changed via Firefox settings
+  keywordShortcutPopup.readOnly = true;
+
+  // Handle "Change in Firefox" button
+  if (openShortcutSettingsPopupBtn) {
+    openShortcutSettingsPopupBtn.addEventListener("click", () => {
+      chrome.runtime.sendMessage({ type: "openShortcutSettings" }, (response) => {
+        if (chrome.runtime.lastError) {
+          console.error("Error opening shortcut settings:", chrome.runtime.lastError);
+          // Try fallback
+          try {
+            chrome.tabs.create({ url: "about:addons" });
+          } catch (e) {
+            showStatus("Please open about:addons manually to change shortcuts", "error");
+          }
+        }
+      });
+    });
+  }
 }
 
 // Initialize the popup

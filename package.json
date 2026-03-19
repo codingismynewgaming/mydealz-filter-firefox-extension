@@ -1,7 +1,7 @@
 {
   "name": "mydealz-filter-firefox-extension",
   "private": true,
-  "version": "1.0.8",
+  "version": "1.0.9",
   "type": "module",
   "scripts": {
     "lint:firefox": "web-ext lint --source-dir app-files",

@@ -111,6 +111,67 @@ async function syncAllTabsActionState() {
 
 // Listen for messages from content script
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.type === "updateKeyboardShortcut") {
+    // Try to update the shortcut using chrome.commands.update
+    // Firefox supports this API
+    if (chrome.commands && chrome.commands.update) {
+      chrome.commands.update({
+        name: "open-keyword-dialog",
+        shortcut: request.shortcut
+      }, () => {
+        if (chrome.runtime.lastError) {
+          console.error("Failed to update keyboard shortcut:", chrome.runtime.lastError);
+          // Save to storage anyway so we can use it as fallback
+          chrome.storage.local.set({ customShortcut: request.shortcut });
+          sendResponse({ status: "error", message: chrome.runtime.lastError.message, saved: true });
+        } else {
+          console.log("Keyboard shortcut updated to:", request.shortcut);
+          chrome.storage.local.set({ customShortcut: request.shortcut });
+          sendResponse({ status: "success", shortcut: request.shortcut });
+        }
+      });
+    } else {
+      // Fallback: just save to storage
+      chrome.storage.local.set({ customShortcut: request.shortcut }, () => {
+        sendResponse({ status: "saved", message: "Shortcut saved (commands.update not available)" });
+      });
+    }
+    return true; // Keep message channel open
+  }
+
+  if (request.type === "getKeyboardShortcut") {
+    // Get current shortcut from Firefox
+    if (chrome.commands && chrome.commands.getAll) {
+      chrome.commands.getAll((commands) => {
+        const command = commands.find(cmd => cmd.name === "open-keyword-dialog");
+        if (command) {
+          sendResponse({ shortcut: command.shortcut, name: command.name });
+        } else {
+          sendResponse({ shortcut: null, error: "Command not found" });
+        }
+      });
+    } else {
+      // Fallback to storage
+      chrome.storage.local.get(["customShortcut"], (result) => {
+        sendResponse({ shortcut: result.customShortcut || "Ctrl+Shift+K" });
+      });
+    }
+    return true;
+  }
+
+  if (request.type === "openShortcutSettings") {
+    // Open Firefox's extension shortcut settings page
+    if (chrome.commands && chrome.commands.openShortcutSettings) {
+      chrome.commands.openShortcutSettings();
+      sendResponse({ status: "opened" });
+    } else {
+      // Fallback: open about:addons shortcuts page
+      chrome.tabs.create({ url: "about:addons" });
+      sendResponse({ status: "fallback", message: "Opened about:addons" });
+    }
+    return true;
+  }
+
   if (request.type === "updateBadge") {
     if (sender.tab && sender.tab.id !== undefined) {
       const isMydealzDeTab = isMydealzDeUrl(sender.tab.url);
@@ -166,6 +227,15 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   hiddenDealsInfo.delete(tabId);
 });
 
-
-
-
+// Handle keyboard commands
+chrome.commands.onCommand.addListener((command) => {
+  if (command === "open-keyword-dialog") {
+    // Open the keyword dialog
+    chrome.windows.create({
+      url: "src/keyword-dialog.html",
+      type: "popup",
+      width: 400,
+      height: 300
+    });
+  }
+});
