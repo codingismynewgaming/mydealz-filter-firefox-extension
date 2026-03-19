@@ -45,26 +45,29 @@
 - HTML + CSS
 
 ## Current Status
-- Version 1.0.9 **committed and pushed to GitHub**
-- Mozilla AMO submission skipped (JWT authentication issue - needs fresh credentials)
-- Previous version 1.0.8 successfully submitted to Mozilla Add-ons
+- Version 1.0.9 **successfully submitted to Mozilla AMO** (unlisted channel)
+- Signed XPI available at: `web-ext-artifacts/mydealz_de_filter-1.0.9.xpi`
+- Backup copy in: `builds/mydealz_de_filter-1.0.9-signed.xpi`
+- GitHub repo updated with v1.0.9 release
 
 ## GitHub Repo
 - Repository: https://github.com/codingismynewgaming/mydealz-filter-firefox-extension
-- Latest commit: `a6b4235` - chore(release): v1.0.9
+- Latest commit: `b59a857` - docs: update status.md with v1.0.9 release notes
 - Branch: master (up to date)
-
-## AMO Submission Notes (Failed)
-- Attempted unlisted submission with stored JWT credentials
-- Failed with "Error decoding signature" - JWT secret may be expired or incorrect
-- Next attempt: Get fresh JWT credentials from AMO Developer Hub
-- Alternative: Submit manually via AMO web interface
 
 ## AMO Submission Info
 - Add-on URL: https://addons.mozilla.org/en-US/firefox/addon/mydealz-de-filter/
-- JWT Issuer (old): user:15554910:941
-- Credentials stored in: /internals/amo-credentials.md
-- Last successful submission: 2026-03-14 (v1.0.8)
+- JWT Issuer: `user:15554910:966` (updated 2026-03-19)
+- Credentials stored in: `/internals/amo-credentials.md`
+- Submission date: 2026-03-19
+- Submission channel: **unlisted** (self-hosted, no Mozilla review required)
+- Signed XPI size: 75,162 bytes
+
+## AMO Deployment Notes
+- **Failed:** Initial submission with old credentials (user:15554910:941) - "Error decoding signature"
+- **Failed:** Environment variable approach (`WEB_EXT_API_KEY`/`WEB_EXT_API_SECRET`) - same error
+- **Worked:** Direct CLI flags with `npx web-ext sign --api-key --api-secret`
+- Unlisted channel chosen for immediate availability (no Mozilla review wait)
 
 ## Next Steps
 - Submit version 1.0.9 to Mozilla Add-ons

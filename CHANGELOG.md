@@ -4,6 +4,11 @@ All notable changes to this project are documented in this file.
 
 ## 1.0.9 - 2026-03-19
 
+### Release
+- **Successfully submitted to Mozilla AMO** (unlisted channel)
+- Signed XPI: `web-ext-artifacts/mydealz_de_filter-1.0.9.xpi`
+- No Mozilla review required (unlisted/self-hosted)
+
 ### Fixed
 - Fixed infinite scroll code: Was broken as string literals instead of executable code. Now properly triggers scroll on pages like /gruppe/freebies at 80% threshold.
 - Fixed icon not turning green on mydealz.de: The background.js had corrupted code with escaped newlines that prevented proper icon state management.
