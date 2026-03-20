@@ -23,14 +23,15 @@ const SYNC_KEY_CHUNK_COUNT_KEY = "totalHiddenDealKeysChunkCount";
 const SYNC_TERM_COUNT_CHUNK_PREFIX = "hiddenCountsByTermChunk_";
 const SYNC_TERM_COUNT_CHUNK_COUNT_KEY = "hiddenCountsByTermChunkCount";
 const SETTINGS_STORAGE_KEYS = [
-  "filterTerms",
-  "exceptionTerms",
-  "autoSortComments",
-  "greyOutSeenDeals",
-  "greyOutOpacityPercent",
-  "filterTermCategories",
-  "categoryStates",
-];
+   "filterTerms",
+   "exceptionTerms",
+   "autoSortComments",
+   "greyOutSeenDeals",
+   "greyOutOpacityPercent",
+   "filterTermCategories",
+   "categoryStates",
+   "infiniteScrollImprovements",
+ ];
 const AUTO_SORT_COMMENTS_KEY = "autoSortComments";
 const GREY_OUT_SEEN_DEALS_KEY = "greyOutSeenDeals";
 const GREY_OUT_OPACITY_KEY = "greyOutOpacityPercent";
@@ -463,43 +464,45 @@ function isVisibleElement(element) {
 }
 
 function tryApplyHelpfulCommentSort() {
-  const allSelects = Array.from(document.querySelectorAll("select"));
-  for (const select of allSelects) {
-    const helpfulOption = Array.from(select.options || []).find((option) =>
-      isHelpfulSortLabel(option.textContent || option.label || option.value || "")
-    );
+   const allSelects = Array.from(document.querySelectorAll("select"));
+   for (const select of allSelects) {
+     const helpfulOption = Array.from(select.options || []).find((option) =>
+       isHelpfulSortLabel(option.textContent || option.label || option.value || "")
+     );
 
-    if (helpfulOption) {
-      if (select.value !== helpfulOption.value) {
-        select.value = helpfulOption.value;
-        select.dispatchEvent(new Event("input", { bubbles: true }));
-        select.dispatchEvent(new Event("change", { bubbles: true }));
-      }
-      return true;
-    }
-  }
+     if (helpfulOption) {
+       // Only set if it's not already set to helpful sort
+       if (!isElementSelected(helpfulOption)) {
+         select.value = helpfulOption.value;
+         select.dispatchEvent(new Event("input", { bubbles: true }));
+         select.dispatchEvent(new Event("change", { bubbles: true }));
+       }
+       return true;
+     }
+   }
 
-  const clickableSelectors = [
-    "[role='option']",
-    "[role='menuitemradio']",
-    "[role='button']",
-    "button",
-    "a",
-    "label",
-  ];
-  const helpfulOption = Array.from(document.querySelectorAll(clickableSelectors.join(","))).find(
-    (element) => isVisibleElement(element) && isHelpfulSortLabel(element.textContent || "")
-  );
+   const clickableSelectors = [
+     "[role='option']",
+     "[role='menuitemradio']",
+     "[role='button']",
+     "button",
+     "a",
+     "label",
+   ];
+   const helpfulOption = Array.from(document.querySelectorAll(clickableSelectors.join(","))).find(
+     (element) => isVisibleElement(element) && isHelpfulSortLabel(element.textContent || "")
+   );
 
-  if (helpfulOption) {
-    if (!isElementSelected(helpfulOption)) {
-      helpfulOption.click();
-    }
-    return true;
-  }
+   if (helpfulOption) {
+     // Only click if it's not already selected
+     if (!isElementSelected(helpfulOption)) {
+       helpfulOption.click();
+     }
+     return true;
+   }
 
-  return false;
-}
+   return false;
+ }
 
 async function applyCommentSorting(attempt = 0) {
   if (!isDealDetailsPage()) return;
@@ -1505,8 +1508,37 @@ init();
 let scrollTimeout = null;
 const SCROLL_DEBOUNCE_MS = 300;
 const SCROLL_TRIGGER_THRESHOLD = 0.8;
+let infiniteScrollEnabled = false;
+
+// Load the infinite scroll setting
+async function loadInfiniteScrollSetting() {
+    try {
+        const result = await new Promise((resolve) => {
+            chrome.storage.local.get(['infiniteScrollImprovements'], (data) => {
+                resolve(data);
+            });
+        });
+        infiniteScrollEnabled = result.infiniteScrollImprovements === true;
+        // Also check sync storage as fallback
+        if (infiniteScrollEnabled === undefined) {
+            chrome.storage.sync.get(['infiniteScrollImprovements'], (data) => {
+                infiniteScrollEnabled = data.infiniteScrollImprovements === true;
+            });
+        }
+    } catch (error) {
+        console.error('Failed to load infinite scroll setting:', error);
+        infiniteScrollEnabled = false;
+    }
+}
+
+// Initialize the setting on load
+loadInfiniteScrollSetting();
 
 function triggerInfiniteScroll() {
+    if (!infiniteScrollEnabled) {
+        return;
+    }
+    
     if (isDealDetailsPage()) {
         return;
     }
@@ -1514,10 +1546,12 @@ function triggerInfiniteScroll() {
     const scrollPosition = window.innerHeight + window.scrollY;
     const pageHeight = document.body.offsetHeight;
 
+    // Don't trigger if already at the bottom of the page
     if (scrollPosition >= pageHeight) {
         return;
     }
 
+    // Only trigger when going over the 80% threshold of loaded deals
     if (scrollPosition >= pageHeight * SCROLL_TRIGGER_THRESHOLD) {
         window.scrollBy(0, window.innerHeight);
         log("Triggered infinite scroll - scrolled down to load more content");

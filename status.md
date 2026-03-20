@@ -1,5 +1,17 @@
 # Project Status - mydealz-filter-firefox-extension
 
+## Last Changes (2026-03-20)
+- **Version 1.0.10 released** - Bumped from 1.0.9
+- **AMO Submission**: Public release on Mozilla Add-ons website (listed channel, not self-hosted)
+- Built XPI using `web-ext build` command
+- XPI file: `web-ext-artifacts/mydealz_de_filter-1.0.10.xpi`
+- Distribution: Automatic updates via Mozilla Add-ons
+- **Added infinite scroll improvements toggle** in extension options to enable/disable the feature
+- **Improved infinite scroll logic**: Now only triggers when going over 80% threshold of loaded deals and doesn't trigger again when already at bottom of page
+- **Enhanced 'am hilfreichsten' auto-sort**: Only sets sort if it's not already set to avoid unnecessary changes
+
+## Last Changes (2026-03-19)
+
 ## Last Changes (2026-03-19)
 - **Version 1.0.9 released** - Bumped from 1.0.8
 - Fixed infinite scroll code: Was broken as string literals instead of executable code. Now properly triggers scroll on pages like /gruppe/freebies at 80% threshold.
@@ -45,10 +57,9 @@
 - HTML + CSS
 
 ## Current Status
-- Version 1.0.9 **successfully submitted to Mozilla AMO** (unlisted channel)
-- Signed XPI available at: `web-ext-artifacts/mydealz_de_filter-1.0.9.xpi`
-- Backup copy in: `builds/mydealz_de_filter-1.0.9-signed.xpi`
-- GitHub repo updated with v1.0.9 release
+- Version 1.0.10 **successfully submitted to Mozilla AMO** (listed channel)
+- Signed XPI available at: `web-ext-artifacts/mydealz_de_filter-1.0.10.xpi`
+- GitHub repo updated with v1.0.10 release
 
 ## GitHub Repo
 - Repository: https://github.com/codingismynewgaming/mydealz-filter-firefox-extension

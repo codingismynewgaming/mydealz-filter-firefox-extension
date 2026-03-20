@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented in this file.
 
+## 1.0.10 - 2026-03-20
+
+### Release
+- **AMO Submission**: Released on Mozilla Add-ons website (not self-hosted)
+- Signed XPI: `web-ext-artifacts/mydealz_de_filter-1.0.10.xpi`
+- Distribution: Public release on addons.mozilla.org for automatic updates
+
+### Added
+- Added infinite scroll improvements toggle in extension options to enable/disable the feature
+- Improved infinite scroll logic: Only triggers when going over 80% threshold of loaded deals and doesn't trigger again when already at bottom of page
+- Enhanced 'am hilfreichsten' auto-sort: Only sets sort if it's not already set to avoid unnecessary changes
+
 ## 1.0.9 - 2026-03-19
 
 ### Release

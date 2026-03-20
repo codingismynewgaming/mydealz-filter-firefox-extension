@@ -769,35 +769,43 @@ async function loadFilterTerms() {
   let filterTerms = "";
   let exceptionTerms = "";
 
-  // Always try sync first for the most up-to-date data.
-  if (syncArea) {
-    const { result, error } = await storageGet(syncArea, FILTER_STORAGE_KEYS);
-    if (!error && (result.filterTerms || result.exceptionTerms)) {
-      filterTerms = result.filterTerms || "";
-      exceptionTerms = result.exceptionTerms || "";
-      loadedFrom = "sync";
-    } else if (error) {
-      console.error("Error loading from sync storage:", error);
-    }
-    if (!error) {
-      autoSortCommentsCheckbox.checked = result.autoSortComments === true;
-      greyOutSeenDealsCheckbox.checked = result.greyOutSeenDeals === true;
-      updateGreyOutOpacityUI(result[GREY_OUT_OPACITY_KEY]);
-    }
-  }
+// Always try sync first for the most up-to-date data.
+   if (syncArea) {
+     const { result, error } = await storageGet(syncArea, FILTER_STORAGE_KEYS);
+     if (!error && (result.filterTerms || result.exceptionTerms)) {
+       filterTerms = result.filterTerms || "";
+       exceptionTerms = result.exceptionTerms || "";
+       loadedFrom = "sync";
+     } else if (error) {
+       console.error("Error loading from sync storage:", error);
+     }
+     if (!error) {
+       autoSortCommentsCheckbox.checked = result.autoSortComments === true;
+       greyOutSeenDealsCheckbox.checked = result.greyOutSeenDeals === true;
+       const infiniteScrollCheckbox = document.getElementById("infiniteScrollImprovements");
+       if (infiniteScrollCheckbox) {
+         infiniteScrollCheckbox.checked = result.infiniteScrollImprovements === true;
+       }
+       updateGreyOutOpacityUI(result[GREY_OUT_OPACITY_KEY]);
+     }
+   }
 
-  // Fallback to local if sync yielded nothing or failed.
-  if (loadedFrom === "none" && localArea) {
-    const { result } = await storageGet(localArea, FILTER_STORAGE_KEYS);
-    if (result.filterTerms || result.exceptionTerms) {
-      filterTerms = result.filterTerms || "";
-      exceptionTerms = result.exceptionTerms || "";
-      loadedFrom = "local";
-    }
-    autoSortCommentsCheckbox.checked = result.autoSortComments === true;
-    greyOutSeenDealsCheckbox.checked = result.greyOutSeenDeals === true;
-    updateGreyOutOpacityUI(result[GREY_OUT_OPACITY_KEY]);
-  }
+// Fallback to local if sync yielded nothing or failed.
+   if (loadedFrom === "none" && localArea) {
+     const { result } = await storageGet(localArea, FILTER_STORAGE_KEYS);
+     if (result.filterTerms || result.exceptionTerms) {
+       filterTerms = result.filterTerms || "";
+       exceptionTerms = result.exceptionTerms || "";
+       loadedFrom = "local";
+     }
+     autoSortCommentsCheckbox.checked = result.autoSortComments === true;
+     greyOutSeenDealsCheckbox.checked = result.greyOutSeenDeals === true;
+     const infiniteScrollCheckbox = document.getElementById("infiniteScrollImprovements");
+     if (infiniteScrollCheckbox) {
+       infiniteScrollCheckbox.checked = result.infiniteScrollImprovements === true;
+     }
+     updateGreyOutOpacityUI(result[GREY_OUT_OPACITY_KEY]);
+   }
 
   filterTermsTextarea.value = filterTerms;
   exceptionTermsTextarea.value = exceptionTerms;
@@ -888,35 +896,36 @@ async function saveFilterTerms() {
 }
 
 async function saveTogglePreferences() {
-  const payload = {
-    autoSortComments: autoSortCommentsCheckbox.checked,
-    greyOutSeenDeals: greyOutSeenDealsCheckbox.checked,
-    [GREY_OUT_OPACITY_KEY]: getGreyOutOpacityPercent(),
-  };
-  const syncArea = getStorageArea("sync");
-  const localArea = getStorageArea("local");
-  let syncError = false;
+   const payload = {
+     autoSortComments: autoSortCommentsCheckbox.checked,
+     greyOutSeenDeals: greyOutSeenDealsCheckbox.checked,
+     infiniteScrollImprovements: document.getElementById("infiniteScrollImprovements")?.checked || false,
+     [GREY_OUT_OPACITY_KEY]: getGreyOutOpacityPercent(),
+   };
+   const syncArea = getStorageArea("sync");
+   const localArea = getStorageArea("local");
+   let syncError = false;
 
-  if (syncArea) {
-    const { error } = await storageSet(syncArea, payload);
-    syncError = !!error;
-    if (error) {
-      console.error("Sync storage error while saving toggle preferences:", error);
-    }
-  } else {
-    syncError = true;
-  }
+   if (syncArea) {
+     const { error } = await storageSet(syncArea, payload);
+     syncError = !!error;
+     if (error) {
+       console.error("Sync storage error while saving toggle preferences:", error);
+     }
+   } else {
+     syncError = true;
+   }
 
-  if (localArea) {
-    const { error } = await storageSet(localArea, payload);
-    if (error) {
-      console.error("Local storage error while saving toggle preferences:", error);
-    }
-  }
+   if (localArea) {
+     const { error } = await storageSet(localArea, payload);
+     if (error) {
+       console.error("Local storage error while saving toggle preferences:", error);
+     }
+   }
 
-  await notifyContentScripts();
-  return { syncError };
-}
+   await notifyContentScripts();
+   return { syncError };
+ }
 
 async function handleExportFilters() {
   const payload = await buildExportPayload();
