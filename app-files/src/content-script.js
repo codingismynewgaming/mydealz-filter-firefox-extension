@@ -464,45 +464,87 @@ function isVisibleElement(element) {
 }
 
 function tryApplyHelpfulCommentSort() {
-   const allSelects = Array.from(document.querySelectorAll("select"));
-   for (const select of allSelects) {
-     const helpfulOption = Array.from(select.options || []).find((option) =>
-       isHelpfulSortLabel(option.textContent || option.label || option.value || "")
-     );
+  const allSelects = Array.from(document.querySelectorAll("select"));
+  for (const select of allSelects) {
+    const helpfulOption = Array.from(select.options || []).find((option) =>
+      isHelpfulSortLabel(option.textContent || option.label || option.value || "")
+    );
 
-     if (helpfulOption) {
-       // Only set if it's not already set to helpful sort
-       if (!isElementSelected(helpfulOption)) {
-         select.value = helpfulOption.value;
-         select.dispatchEvent(new Event("input", { bubbles: true }));
-         select.dispatchEvent(new Event("change", { bubbles: true }));
-       }
-       return true;
-     }
-   }
+    if (helpfulOption) {
+      // Only set if it's not already set to helpful sort
+      if (!isElementSelected(helpfulOption) && select.value !== helpfulOption.value) {
+        select.value = helpfulOption.value;
+        select.dispatchEvent(new Event("input", { bubbles: true }));
+        select.dispatchEvent(new Event("change", { bubbles: true }));
+        // Blur the select to close any open dropdown
+        select.blur();
+        // Dispatch Escape key to close dropdown
+        select.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      }
+      return true;
+    }
+  }
 
-   const clickableSelectors = [
-     "[role='option']",
-     "[role='menuitemradio']",
-     "[role='button']",
-     "button",
-     "a",
-     "label",
-   ];
-   const helpfulOption = Array.from(document.querySelectorAll(clickableSelectors.join(","))).find(
-     (element) => isVisibleElement(element) && isHelpfulSortLabel(element.textContent || "")
-   );
+  // Look for custom dropdowns (like mydealz.de's React-based dropdowns)
+  const dropdownTriggers = document.querySelectorAll('[role="button"], button, [aria-haspopup="true"]');
+  for (const trigger of Array.from(dropdownTriggers)) {
+    const triggerText = trigger.textContent || '';
+    // Check if this is a sort dropdown trigger
+    if (triggerText.toLowerCase().includes('sortieren') || triggerText.toLowerCase().includes('sort')) {
+      // Check if dropdown is already set to helpful
+      const currentSelection = trigger.querySelector('[class*="selected"], [class*="active"]') || trigger;
+      if (isHelpfulSortLabel(currentSelection.textContent || '')) {
+        continue; // Already set, skip
+      }
 
-   if (helpfulOption) {
-     // Only click if it's not already selected
-     if (!isElementSelected(helpfulOption)) {
-       helpfulOption.click();
-     }
-     return true;
-   }
+      // Click to open dropdown
+      trigger.click();
 
-   return false;
- }
+      // Wait a tick for dropdown to open, then find and click helpful option
+      setTimeout(() => {
+        const dropdownOptions = document.querySelectorAll('[role="option"], [role="menuitem"], [role="menuitemradio"]');
+        for (const option of Array.from(dropdownOptions)) {
+          if (isHelpfulSortLabel(option.textContent || '')) {
+            // Only click if not already selected
+            if (!isElementSelected(option)) {
+              option.click();
+            }
+            // Close dropdown by clicking elsewhere or pressing Escape
+            document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+            break;
+          }
+        }
+      }, 100);
+
+      return true;
+    }
+  }
+
+  const clickableSelectors = [
+    "[role='option']",
+    "[role='menuitemradio']",
+    "[role='button']",
+    "button",
+    "a",
+    "label",
+  ];
+  const helpfulOption = Array.from(document.querySelectorAll(clickableSelectors.join(","))).find(
+    (element) => isVisibleElement(element) && isHelpfulSortLabel(element.textContent || "")
+  );
+
+  if (helpfulOption) {
+    // Only click if it's not already selected
+    if (!isElementSelected(helpfulOption)) {
+      helpfulOption.click();
+      // Close any open menus
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      document.activeElement?.blur();
+    }
+    return true;
+  }
+
+  return false;
+}
 
 async function applyCommentSorting(attempt = 0) {
   if (!isDealDetailsPage()) return;
@@ -1506,61 +1548,80 @@ init();
 
 // Infinite scroll triggering for pages that don't normally do it (like /gruppe/freebies)
 let scrollTimeout = null;
-const SCROLL_DEBOUNCE_MS = 300;
-const SCROLL_TRIGGER_THRESHOLD = 0.8;
+const SCROLL_DEBOUNCE_MS = 500; // Increased debounce to prevent rapid triggering
+const SCROLL_TRIGGER_THRESHOLD = 0.5; // Trigger at 50% instead of 80%
 let infiniteScrollEnabled = false;
+let lastTriggeredPageHeight = 0; // Track page height when last triggered
+let isTriggeringScroll = false; // Lock to prevent concurrent triggers
 
 // Load the infinite scroll setting
 async function loadInfiniteScrollSetting() {
-    try {
-        const result = await new Promise((resolve) => {
-            chrome.storage.local.get(['infiniteScrollImprovements'], (data) => {
-                resolve(data);
-            });
-        });
-        infiniteScrollEnabled = result.infiniteScrollImprovements === true;
-        // Also check sync storage as fallback
-        if (infiniteScrollEnabled === undefined) {
-            chrome.storage.sync.get(['infiniteScrollImprovements'], (data) => {
-                infiniteScrollEnabled = data.infiniteScrollImprovements === true;
-            });
-        }
-    } catch (error) {
-        console.error('Failed to load infinite scroll setting:', error);
-        infiniteScrollEnabled = false;
+  try {
+    const result = await new Promise((resolve) => {
+      chrome.storage.local.get(['infiniteScrollImprovements'], (data) => {
+        resolve(data);
+      });
+    });
+    infiniteScrollEnabled = result.infiniteScrollImprovements === true;
+    // Also check sync storage as fallback
+    if (infiniteScrollEnabled === undefined) {
+      chrome.storage.sync.get(['infiniteScrollImprovements'], (data) => {
+        infiniteScrollEnabled = data.infiniteScrollImprovements === true;
+      });
     }
+  } catch (error) {
+    console.error('Failed to load infinite scroll setting:', error);
+    infiniteScrollEnabled = false;
+  }
 }
 
 // Initialize the setting on load
 loadInfiniteScrollSetting();
 
 function triggerInfiniteScroll() {
-    if (!infiniteScrollEnabled) {
-        return;
-    }
+  if (!infiniteScrollEnabled) {
+    return;
+  }
+  
+  // Prevent concurrent triggers
+  if (isTriggeringScroll) {
+    return;
+  }
+  
+  if (isDealDetailsPage()) {
+    return;
+  }
+
+  const scrollPosition = window.innerHeight + window.scrollY;
+  const pageHeight = document.body.offsetHeight;
+  const scrollPercent = scrollPosition / pageHeight;
+
+  // Don't trigger if already at the bottom of the page
+  if (scrollPosition >= pageHeight - 100) { // Within 100px of bottom
+    return;
+  }
+
+  // Only trigger when going over the 50% threshold of loaded deals
+  // AND only if the page has grown since last trigger (new content loaded)
+  if (scrollPercent >= SCROLL_TRIGGER_THRESHOLD && pageHeight > lastTriggeredPageHeight) {
+    isTriggeringScroll = true;
+    lastTriggeredPageHeight = pageHeight;
     
-    if (isDealDetailsPage()) {
-        return;
-    }
-
-    const scrollPosition = window.innerHeight + window.scrollY;
-    const pageHeight = document.body.offsetHeight;
-
-    // Don't trigger if already at the bottom of the page
-    if (scrollPosition >= pageHeight) {
-        return;
-    }
-
-    // Only trigger when going over the 80% threshold of loaded deals
-    if (scrollPosition >= pageHeight * SCROLL_TRIGGER_THRESHOLD) {
-        window.scrollBy(0, window.innerHeight);
-        log("Triggered infinite scroll - scrolled down to load more content");
-    }
+    // Use a smaller scroll increment to avoid erratic behavior
+    const scrollIncrement = Math.min(window.innerHeight * 0.3, 500);
+    window.scrollBy({ top: scrollIncrement, behavior: 'smooth' });
+    log("Triggered infinite scroll - scrolled down to load more content");
+    
+    // Release lock after scroll completes
+    setTimeout(() => {
+      isTriggeringScroll = false;
+    }, SCROLL_DEBOUNCE_MS);
+  }
 }
 
 function handleScroll() {
-    clearTimeout(scrollTimeout);
-    scrollTimeout = setTimeout(triggerInfiniteScroll, SCROLL_DEBOUNCE_MS);
+  clearTimeout(scrollTimeout);
+  scrollTimeout = setTimeout(triggerInfiniteScroll, SCROLL_DEBOUNCE_MS);
 }
 
-window.addEventListener('scroll', handleScroll);
+window.addEventListener('scroll', handleScroll, { passive: true });

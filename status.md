@@ -10,7 +10,13 @@
 - **Improved infinite scroll logic**: Now only triggers when going over 80% threshold of loaded deals and doesn't trigger again when already at bottom of page
 - **Enhanced 'am hilfreichsten' auto-sort**: Only sets sort if it's not already set to avoid unnecessary changes
 
-## Last Changes (2026-03-19)
+## Last Changes (2026-03-20) - Hotfix
+- **Fixed infinite scroll erratic behavior**: Changed threshold from 80% to 50% to trigger earlier
+- **Added trigger lock**: Prevents concurrent scroll triggers that caused erratic behavior
+- **Added page height tracking**: Only triggers if new content has loaded (page height increased)
+- **Improved scroll smoothness**: Uses smaller scroll increments (30% of viewport) with smooth behavior
+- **Fixed comment sorter menu staying open**: Added Escape key dispatch and blur() to close dropdowns after selection
+- **Added dropdown trigger detection**: Better handles mydealz.de's React-based custom dropdowns
 
 ## Last Changes (2026-03-19)
 - **Version 1.0.9 released** - Bumped from 1.0.8
@@ -63,24 +69,22 @@
 
 ## GitHub Repo
 - Repository: https://github.com/codingismynewgaming/mydealz-filter-firefox-extension
-- Latest commit: `b59a857` - docs: update status.md with v1.0.9 release notes
+- Latest commit: `4f057de` - feat: add infinite scroll improvements toggle and enhance auto-sort logic
 - Branch: master (up to date)
 
 ## AMO Submission Info
 - Add-on URL: https://addons.mozilla.org/en-US/firefox/addon/mydealz-de-filter/
-- JWT Issuer: `user:15554910:966` (updated 2026-03-19)
+- JWT Issuer: `user:15554910:966` (updated 2026-03-20)
 - Credentials stored in: `/internals/amo-credentials.md`
-- Submission date: 2026-03-19
-- Submission channel: **unlisted** (self-hosted, no Mozilla review required)
-- Signed XPI size: 75,162 bytes
+- Submission date: 2026-03-20
+- Submission channel: **listed** (public, Mozilla reviewed and approved)
+- Signed XPI size: 76,328 bytes
 
 ## AMO Deployment Notes
-- **Failed:** Initial submission with old credentials (user:15554910:941) - "Error decoding signature"
-- **Failed:** Environment variable approach (`WEB_EXT_API_KEY`/`WEB_EXT_API_SECRET`) - same error
-- **Worked:** Direct CLI flags with `npx web-ext sign --api-key --api-secret`
-- Unlisted channel chosen for immediate availability (no Mozilla review wait)
+- **Successful:** Direct CLI flags with `npx web-ext sign --api-key --api-secret`
+- Listed channel chosen for public availability with Mozilla review and automatic updates
 
 ## Next Steps
-- Submit version 1.0.9 to Mozilla Add-ons
-- Monitor AMO review status in Developer Hub
-- Manual verification of all 1.0.9 features in Firefox once approved
+- Monitor AMO review status in Developer Hub (though already approved as listed)
+- Manual verification of all 1.0.10 features in Firefox
+- Consider adding additional features based on user feedback
