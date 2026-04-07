@@ -32,3 +32,10 @@ Thumbs.db
 # Temporary
 .tmp/
 temp/
+
+# Root-level files that shouldn't be public
+status.md
+QWEN.md
+$null
+content-script.js
+package.json
