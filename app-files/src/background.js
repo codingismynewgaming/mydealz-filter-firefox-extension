@@ -63,6 +63,15 @@ function requestHiddenDealsFromTab(tabId) {
   });
 }
 
+function setShortcutPreference(shortcut, callback) {
+  const payload = { customShortcut: shortcut, keywordShortcut: shortcut };
+  chrome.storage.sync.set(payload, () => {
+    chrome.storage.local.set(payload, () => {
+      callback?.();
+    });
+  });
+}
+
 async function syncTabActionState(tabId, attempt = 0) {
   if (tabId === undefined || tabId === null) return;
 
@@ -121,18 +130,18 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       }, () => {
         if (chrome.runtime.lastError) {
           console.error("Failed to update keyboard shortcut:", chrome.runtime.lastError);
-          // Save to storage anyway so we can use it as fallback
-          chrome.storage.local.set({ customShortcut: request.shortcut });
-          sendResponse({ status: "error", message: chrome.runtime.lastError.message, saved: true });
+          setShortcutPreference(request.shortcut, () => {
+            sendResponse({ status: "error", message: chrome.runtime.lastError.message, saved: true });
+          });
         } else {
           console.log("Keyboard shortcut updated to:", request.shortcut);
-          chrome.storage.local.set({ customShortcut: request.shortcut });
-          sendResponse({ status: "success", shortcut: request.shortcut });
+          setShortcutPreference(request.shortcut, () => {
+            sendResponse({ status: "success", shortcut: request.shortcut });
+          });
         }
       });
     } else {
-      // Fallback: just save to storage
-      chrome.storage.local.set({ customShortcut: request.shortcut }, () => {
+      setShortcutPreference(request.shortcut, () => {
         sendResponse({ status: "saved", message: "Shortcut saved (commands.update not available)" });
       });
     }
@@ -151,9 +160,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         }
       });
     } else {
-      // Fallback to storage
-      chrome.storage.local.get(["customShortcut"], (result) => {
-        sendResponse({ shortcut: result.customShortcut || "Ctrl+Shift+K" });
+      chrome.storage.sync.get(["customShortcut", "keywordShortcut"], (syncResult) => {
+        if (!chrome.runtime.lastError && (syncResult.customShortcut || syncResult.keywordShortcut)) {
+          sendResponse({ shortcut: syncResult.customShortcut || syncResult.keywordShortcut || "Ctrl+Shift+K" });
+          return;
+        }
+
+        chrome.storage.local.get(["customShortcut", "keywordShortcut"], (result) => {
+          sendResponse({ shortcut: result.customShortcut || result.keywordShortcut || "Ctrl+Shift+K" });
+        });
       });
     }
     return true;

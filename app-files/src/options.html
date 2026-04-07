@@ -80,23 +80,14 @@
           </label>
 
          <label class="toggle-card" for="greyOutSeenDeals">
-             <span class="toggle-copy">
-               <span class="toggle-title">Grey out seen deals</span>
-               <span class="toggle-description">Keeps deals clickable, but fades repeats only after you scroll past them or leave the deal page.</span>
-             </span>
-             <input id="greyOutSeenDeals" type="checkbox" />
-           </label>
+            <span class="toggle-copy">
+              <span class="toggle-title">Grey out seen deals</span>
+              <span class="toggle-description">Keeps deals clickable, but fades repeats only after you scroll past them or leave the deal page.</span>
+            </span>
+            <input id="greyOutSeenDeals" type="checkbox" />
+          </label>
 
-           <label class="toggle-card" for="infiniteScrollImprovements">
-             <span class="toggle-copy">
-               <span class="toggle-title">Infinite scroll improvements</span>
-               <span class="toggle-description">Automatically scroll to load more deals when reaching 80% of page (only for listing pages).</span>
-             </span>
-             <input id="infiniteScrollImprovements" type="checkbox" />
-           </label>
-
-          <div class="range-card">
-            <div class="range-copy">
+         <div class="range-card">            <div class="range-copy">
               <label class="range-title" for="greyOutOpacity">Grey-out opacity</label>
               <p class="range-description">Set how faded seen deals should look (0% = invisible, 100% = normal).</p>
             </div>
@@ -104,6 +95,16 @@
               <input id="greyOutOpacity" type="range" min="0" max="100" step="1" />
               <span id="greyOutOpacityValue" class="range-value">30%</span>
             </div>
+          </div>
+
+          <div class="form-group" style="margin-top: 20px; border-top: 1px solid var(--border-color); padding-top: 20px;">
+            <label>Seen Deals Cache</label>
+            <p class="hint" style="margin-bottom: 10px;">
+              Clears the history of deals you've already scrolled past, so they won't be greyed out anymore.
+            </p>
+            <button id="resetSeenDealsBtn" class="btn btn-secondary" type="button" style="width: auto;">
+              Reset Seen Deals Cache
+            </button>
           </div>
 
         </section>

@@ -17,21 +17,25 @@ let hiddenCountsByTerm = {};
 let persistTotalsTimer = null;
 const TOTALS_PERSIST_DEBOUNCE_MS = 1500;
 const DEAL_DETAILS_PATH_PREFIX = "/deals/";
-const SYNC_CHUNK_SIZE = 7000;
-const SYNC_KEY_CHUNK_PREFIX = "totalHiddenDealKeysChunk_";
-const SYNC_KEY_CHUNK_COUNT_KEY = "totalHiddenDealKeysChunkCount";
-const SYNC_TERM_COUNT_CHUNK_PREFIX = "hiddenCountsByTermChunk_";
-const SYNC_TERM_COUNT_CHUNK_COUNT_KEY = "hiddenCountsByTermChunkCount";
-const SETTINGS_STORAGE_KEYS = [
+const SYNC_SETTINGS_STORAGE_KEYS = [
    "filterTerms",
    "exceptionTerms",
    "autoSortComments",
-   "greyOutSeenDeals",
    "greyOutOpacityPercent",
    "filterTermCategories",
    "categoryStates",
-   "infiniteScrollImprovements",
- ];
+   "keywordShortcut",
+];
+const LOCAL_SETTINGS_STORAGE_KEYS = [
+  "filterTerms",
+  "exceptionTerms",
+  "autoSortComments",
+  "greyOutSeenDeals",
+  "greyOutOpacityPercent",
+  "filterTermCategories",
+  "categoryStates",
+  "keywordShortcut",
+];
 const AUTO_SORT_COMMENTS_KEY = "autoSortComments";
 const GREY_OUT_SEEN_DEALS_KEY = "greyOutSeenDeals";
 const GREY_OUT_OPACITY_KEY = "greyOutOpacityPercent";
@@ -48,6 +52,10 @@ const DEAL_LIST_INIT_DELAY_MS = 450;
 const DEAL_DETAILS_INIT_DELAY_MS = 150;
 const COMMENT_SORT_MAX_ATTEMPTS = 12;
 const COMMENT_SORT_RETRY_DELAY_MS = 350;
+const HELPFUL_COMMENTS_ENDPOINT = "https://www.mydealz.de/graphql/h/28e9288515aaa33107e3c20006417a4ab5ba3953712fbd44169de48c172f0516";
+const COMMENT_SECTION_SELECTOR = "#thread-comments";
+const COMMENT_LIST_SELECTOR = `${COMMENT_SECTION_SELECTOR} .commentList`;
+const COMMENT_ITEM_SELECTOR = "li.commentList-item[data-id]";
 const SEEN_DEAL_VISIBILITY_THRESHOLD = 0.35;
 let seenDealUrls = {};
 let persistSeenDealsTimer = null;
@@ -58,6 +66,11 @@ let currentSeenSettings = { greyOutSeenDealsEnabled: false };
 const seenDealElementStates = new Map();
 const visibleSeenDealElements = new Set();
 const DEFAULT_CATEGORY_NAME = "Uncategorized";
+let helpfulCommentSortState = {
+  threadId: null,
+  inFlight: false,
+  applied: false,
+};
 
 /**
  * Debug logging helper
@@ -442,108 +455,147 @@ function isHelpfulSortLabel(text) {
   );
 }
 
-function isElementSelected(element) {
-  if (!element) return false;
+function getCurrentThreadId() {
+  const detailElement = document.querySelector("[id^='thread_details_'], [id^='thread_']");
+  const detailId = detailElement?.id || "";
+  const detailMatch = detailId.match(/thread(?:_details)?_(\d+)/);
+  if (detailMatch?.[1]) return detailMatch[1];
 
-  if (element.selected === true) return true;
-  const ariaSelected = element.getAttribute("aria-selected");
-  const ariaChecked = element.getAttribute("aria-checked");
-  const ariaPressed = element.getAttribute("aria-pressed");
-  if (ariaSelected === "true" || ariaChecked === "true" || ariaPressed === "true") return true;
+  const pathname = (window.location && window.location.pathname) || "";
+  const pathMatch = pathname.match(/-(\d+)(?:$|[/?#])/);
+  if (pathMatch?.[1]) return pathMatch[1];
 
-  return (
-    element.classList.contains("is-selected") ||
-    element.classList.contains("selected") ||
-    element.classList.contains("active") ||
-    element.classList.contains("is-active")
+  return null;
+}
+
+function getCookieValue(name) {
+  const cookies = (document.cookie || "").split(";");
+  for (const cookie of cookies) {
+    const trimmed = cookie.trim();
+    if (!trimmed.startsWith(`${name}=`)) continue;
+    return decodeURIComponent(trimmed.slice(name.length + 1));
+  }
+  return null;
+}
+
+function getCommentListElement() {
+  return document.querySelector(COMMENT_LIST_SELECTOR);
+}
+
+function getTopLevelCommentItems() {
+  const commentList = getCommentListElement();
+  if (!commentList) return [];
+  return Array.from(commentList.querySelectorAll(`:scope > ${COMMENT_ITEM_SELECTOR}`));
+}
+
+function extractHelpfulCommentsPayload(rawPayload) {
+  const payload = Array.isArray(rawPayload) ? rawPayload : [];
+  const comments = payload.find((entry) => Array.isArray(entry?.data?.comments?.items))?.data?.comments;
+  const commentsPinned = payload.find((entry) => Array.isArray(entry?.data?.commentsPinned?.items))?.data?.commentsPinned;
+
+  return {
+    items: Array.isArray(comments?.items) ? comments.items : [],
+    pinnedItems: Array.isArray(commentsPinned?.items) ? commentsPinned.items : [],
+    pagination: comments?.pagination || null,
+  };
+}
+
+async function fetchHelpfulComments(threadId) {
+  const headers = {
+    Accept: "application/json, text/plain, */*",
+    "X-Request-Type": "application/vnd.pepper.v1+json",
+    "X-Requested-With": "XMLHttpRequest",
+    "X-Pepper-Txn": "threads.show.deal",
+  };
+  const xsrfToken = getCookieValue("xsrf_t");
+  if (xsrfToken) {
+    headers["X-XSRF-TOKEN"] = xsrfToken;
+  }
+
+  const response = await fetch(HELPFUL_COMMENTS_ENDPOINT, {
+    method: "POST",
+    credentials: "include",
+    headers,
+    referrer: window.location.href,
+    mode: "cors",
+  });
+
+  if (!response.ok) {
+    throw new Error(`Helpful comments request failed with status ${response.status}`);
+  }
+
+  const payload = extractHelpfulCommentsPayload(await response.json());
+  const responseThreadId =
+    payload.items[0]?.threadId ||
+    payload.pinnedItems[0]?.threadId ||
+    threadId;
+
+  if (responseThreadId && threadId && responseThreadId !== threadId) {
+    throw new Error(`Helpful comments response thread mismatch: expected ${threadId}, got ${responseThreadId}`);
+  }
+
+  return payload;
+}
+
+function reorderCommentsInDom(payload) {
+  const commentList = getCommentListElement();
+  if (!commentList) return false;
+
+  const topLevelItems = getTopLevelCommentItems();
+  if (topLevelItems.length === 0) return false;
+
+  const itemById = new Map(
+    topLevelItems
+      .map((item) => [item.getAttribute("data-id"), item])
+      .filter(([id]) => !!id)
   );
-}
 
-function isVisibleElement(element) {
-  return !!element && (element.offsetParent !== null || element.getClientRects().length > 0);
-}
-
-function tryApplyHelpfulCommentSort() {
-  const allSelects = Array.from(document.querySelectorAll("select"));
-  for (const select of allSelects) {
-    const helpfulOption = Array.from(select.options || []).find((option) =>
-      isHelpfulSortLabel(option.textContent || option.label || option.value || "")
-    );
-
-    if (helpfulOption) {
-      // Only set if it's not already set to helpful sort
-      if (!isElementSelected(helpfulOption) && select.value !== helpfulOption.value) {
-        select.value = helpfulOption.value;
-        select.dispatchEvent(new Event("input", { bubbles: true }));
-        select.dispatchEvent(new Event("change", { bubbles: true }));
-        // Blur the select to close any open dropdown
-        select.blur();
-        // Dispatch Escape key to close dropdown
-        select.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-      }
-      return true;
-    }
-  }
-
-  // Look for custom dropdowns (like mydealz.de's React-based dropdowns)
-  const dropdownTriggers = document.querySelectorAll('[role="button"], button, [aria-haspopup="true"]');
-  for (const trigger of Array.from(dropdownTriggers)) {
-    const triggerText = trigger.textContent || '';
-    // Check if this is a sort dropdown trigger
-    if (triggerText.toLowerCase().includes('sortieren') || triggerText.toLowerCase().includes('sort')) {
-      // Check if dropdown is already set to helpful
-      const currentSelection = trigger.querySelector('[class*="selected"], [class*="active"]') || trigger;
-      if (isHelpfulSortLabel(currentSelection.textContent || '')) {
-        continue; // Already set, skip
-      }
-
-      // Click to open dropdown
-      trigger.click();
-
-      // Wait a tick for dropdown to open, then find and click helpful option
-      setTimeout(() => {
-        const dropdownOptions = document.querySelectorAll('[role="option"], [role="menuitem"], [role="menuitemradio"]');
-        for (const option of Array.from(dropdownOptions)) {
-          if (isHelpfulSortLabel(option.textContent || '')) {
-            // Only click if not already selected
-            if (!isElementSelected(option)) {
-              option.click();
-            }
-            // Close dropdown by clicking elsewhere or pressing Escape
-            document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-            break;
-          }
-        }
-      }, 100);
-
-      return true;
-    }
-  }
-
-  const clickableSelectors = [
-    "[role='option']",
-    "[role='menuitemradio']",
-    "[role='button']",
-    "button",
-    "a",
-    "label",
+  const desiredIds = [
+    ...payload.pinnedItems.map((comment) => String(comment.commentId)),
+    ...payload.items.map((comment) => String(comment.commentId)),
   ];
-  const helpfulOption = Array.from(document.querySelectorAll(clickableSelectors.join(","))).find(
-    (element) => isVisibleElement(element) && isHelpfulSortLabel(element.textContent || "")
-  );
 
-  if (helpfulOption) {
-    // Only click if it's not already selected
-    if (!isElementSelected(helpfulOption)) {
-      helpfulOption.click();
-      // Close any open menus
-      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-      document.activeElement?.blur();
-    }
-    return true;
+  const orderedItems = desiredIds.map((id) => itemById.get(id)).filter(Boolean);
+  if (orderedItems.length === 0) return false;
+
+  const orderedSet = new Set(orderedItems);
+  const remainingItems = topLevelItems.filter((item) => !orderedSet.has(item));
+
+  [...orderedItems, ...remainingItems].forEach((item) => {
+    commentList.appendChild(item);
+  });
+
+  return true;
+}
+
+function setHelpfulSortLabel() {
+  const sortRoot = document.querySelector("[data-t='sort']");
+  if (!sortRoot) return false;
+
+  const labelNode = Array.from(sortRoot.querySelectorAll("button span span, button span, button"))
+    .find((node) => {
+      const text = (node.textContent || "").trim();
+      return text.length > 0 && node.children.length === 0;
+    });
+
+  if (!labelNode) return false;
+  labelNode.textContent = "Am hilfreichsten";
+  return true;
+}
+
+async function tryApplyHelpfulCommentSortViaApi(threadId) {
+  const payload = await fetchHelpfulComments(threadId);
+  const reordered = reorderCommentsInDom(payload);
+  const hasHelpfulOrdering =
+    reordered ||
+    payload.pagination?.orderBy === "helpful" ||
+    payload.items.length === 0;
+
+  if (hasHelpfulOrdering) {
+    setHelpfulSortLabel();
   }
 
-  return false;
+  return hasHelpfulOrdering;
 }
 
 async function applyCommentSorting(attempt = 0) {
@@ -552,7 +604,38 @@ async function applyCommentSorting(attempt = 0) {
   const { [AUTO_SORT_COMMENTS_KEY]: autoSortComments } = await getRuntimeSettings();
   if (!autoSortComments) return;
 
-  const applied = tryApplyHelpfulCommentSort();
+  const threadId = getCurrentThreadId();
+  if (!threadId) {
+    if (attempt < COMMENT_SORT_MAX_ATTEMPTS) {
+      setTimeout(() => {
+        applyCommentSorting(attempt + 1);
+      }, COMMENT_SORT_RETRY_DELAY_MS);
+    }
+    return;
+  }
+
+  if (helpfulCommentSortState.threadId !== threadId) {
+    helpfulCommentSortState = {
+      threadId,
+      inFlight: false,
+      applied: false,
+    };
+  }
+
+  if (helpfulCommentSortState.applied || helpfulCommentSortState.inFlight) return;
+
+  helpfulCommentSortState.inFlight = true;
+  let applied = false;
+
+  try {
+    applied = await tryApplyHelpfulCommentSortViaApi(threadId);
+  } catch (error) {
+    log("Helpful comment sort via API failed:", error);
+  }
+
+  helpfulCommentSortState.inFlight = false;
+  helpfulCommentSortState.applied = applied;
+
   if (!applied && attempt < COMMENT_SORT_MAX_ATTEMPTS) {
     setTimeout(() => {
       applyCommentSorting(attempt + 1);
@@ -567,100 +650,6 @@ async function registerCurrentDealForSeenTracking(visualSeenFeaturesEnabled) {
     enabled: visualSeenFeaturesEnabled && !isGreyOutExcludedPage(),
     dealKey: buildDealUniqueKey(document.title || "", window.location.href),
   };
-}
-
-function chunkString(value, chunkSize) {
-  if (!value) return [""];
-  const chunks = [];
-  for (let i = 0; i < value.length; i += chunkSize) {
-    chunks.push(value.slice(i, i + chunkSize));
-  }
-  return chunks;
-}
-
-function buildChunkKeys(prefix, count) {
-  return Array.from({ length: Math.max(0, count) }, (_, i) => `${prefix}${i}`);
-}
-
-function parseChunkedJsonPayload(rawValue, fallbackValue) {
-  if (typeof rawValue !== "string" || rawValue.length === 0) return fallbackValue;
-  try {
-    const parsed = JSON.parse(rawValue);
-    return parsed === undefined ? fallbackValue : parsed;
-  } catch {
-    return fallbackValue;
-  }
-}
-
-function persistTotalsToSync(payload) {
-  const serializedKeys = JSON.stringify(payload.totalHiddenDealKeys || []);
-  const serializedTermCounts = JSON.stringify(payload.hiddenCountsByTerm || {});
-  const keyChunks = chunkString(serializedKeys, SYNC_CHUNK_SIZE);
-  const termCountChunks = chunkString(serializedTermCounts, SYNC_CHUNK_SIZE);
-  const syncPayload = {
-    totalHiddenDealCount: payload.totalHiddenDealCount,
-    [SYNC_KEY_CHUNK_COUNT_KEY]: keyChunks.length,
-    [SYNC_TERM_COUNT_CHUNK_COUNT_KEY]: termCountChunks.length,
-  };
-
-  keyChunks.forEach((chunk, index) => {
-    syncPayload[`${SYNC_KEY_CHUNK_PREFIX}${index}`] = chunk;
-  });
-
-  termCountChunks.forEach((chunk, index) => {
-    syncPayload[`${SYNC_TERM_COUNT_CHUNK_PREFIX}${index}`] = chunk;
-  });
-
-  if (serializedKeys.length <= SYNC_CHUNK_SIZE) {
-    syncPayload.totalHiddenDealKeys = payload.totalHiddenDealKeys;
-  }
-  if (serializedTermCounts.length <= SYNC_CHUNK_SIZE) {
-    syncPayload.hiddenCountsByTerm = payload.hiddenCountsByTerm;
-  }
-
-  chrome.storage.sync.get(
-    [SYNC_KEY_CHUNK_COUNT_KEY, SYNC_TERM_COUNT_CHUNK_COUNT_KEY],
-    (existingSyncState) => {
-      const previousKeyChunkCount = Number.isInteger(existingSyncState[SYNC_KEY_CHUNK_COUNT_KEY])
-        ? existingSyncState[SYNC_KEY_CHUNK_COUNT_KEY]
-        : 0;
-      const previousTermChunkCount = Number.isInteger(
-        existingSyncState[SYNC_TERM_COUNT_CHUNK_COUNT_KEY]
-      )
-        ? existingSyncState[SYNC_TERM_COUNT_CHUNK_COUNT_KEY]
-        : 0;
-
-      chrome.storage.sync.set(syncPayload, () => {
-        if (chrome.runtime.lastError) {
-          log("Error saving total hidden deal state to sync storage:", chrome.runtime.lastError);
-          return;
-        }
-
-        const staleChunkKeys = [
-          ...Array.from(
-            {
-              length: Math.max(previousKeyChunkCount - keyChunks.length, 0),
-            },
-            (_, idx) => `${SYNC_KEY_CHUNK_PREFIX}${idx + keyChunks.length}`
-          ),
-          ...Array.from(
-            {
-              length: Math.max(previousTermChunkCount - termCountChunks.length, 0),
-            },
-            (_, idx) => `${SYNC_TERM_COUNT_CHUNK_PREFIX}${idx + termCountChunks.length}`
-          ),
-        ];
-
-        if (staleChunkKeys.length > 0) {
-          chrome.storage.sync.remove(staleChunkKeys, () => {
-            if (chrome.runtime.lastError) {
-              log("Error removing stale sync chunk keys:", chrome.runtime.lastError);
-            }
-          });
-        }
-      });
-    }
-  );
 }
 
 function schedulePersistTotals() {
@@ -678,7 +667,6 @@ function schedulePersistTotals() {
       }
     });
 
-    persistTotalsToSync(payload);
   }, TOTALS_PERSIST_DEBOUNCE_MS);
 }
 
@@ -698,106 +686,6 @@ async function loadTotalHiddenDealState() {
           result.hiddenCountsByTerm && typeof result.hiddenCountsByTerm === "object"
             ? result.hiddenCountsByTerm
             : {};
-
-        if (
-          !Number.isInteger(result.totalHiddenDealCount) &&
-          savedKeys.length === 0 &&
-          Object.keys(hiddenCountsByTerm).length === 0
-        ) {
-          chrome.storage.sync.get(
-            [
-              "totalHiddenDealCount",
-              "totalHiddenDealKeys",
-              "hiddenCountsByTerm",
-              SYNC_KEY_CHUNK_COUNT_KEY,
-              SYNC_TERM_COUNT_CHUNK_COUNT_KEY,
-            ],
-            (syncBaseState) => {
-              const keyChunkCount = Number.isInteger(syncBaseState[SYNC_KEY_CHUNK_COUNT_KEY])
-                ? syncBaseState[SYNC_KEY_CHUNK_COUNT_KEY]
-                : 0;
-              const termChunkCount = Number.isInteger(
-                syncBaseState[SYNC_TERM_COUNT_CHUNK_COUNT_KEY]
-              )
-                ? syncBaseState[SYNC_TERM_COUNT_CHUNK_COUNT_KEY]
-                : 0;
-              const chunkKeys = [
-                ...buildChunkKeys(SYNC_KEY_CHUNK_PREFIX, keyChunkCount),
-                ...buildChunkKeys(SYNC_TERM_COUNT_CHUNK_PREFIX, termChunkCount),
-              ];
-
-              const finalizeFromSyncState = (syncChunkState) => {
-                const serializedSyncKeys =
-                  keyChunkCount > 0
-                    ? buildChunkKeys(SYNC_KEY_CHUNK_PREFIX, keyChunkCount)
-                        .map((chunkKey) => syncChunkState[chunkKey] || "")
-                        .join("")
-                    : null;
-                const serializedSyncTermCounts =
-                  termChunkCount > 0
-                    ? buildChunkKeys(SYNC_TERM_COUNT_CHUNK_PREFIX, termChunkCount)
-                        .map((chunkKey) => syncChunkState[chunkKey] || "")
-                        .join("")
-                    : null;
-
-                const directSyncKeys = Array.isArray(syncBaseState.totalHiddenDealKeys)
-                  ? syncBaseState.totalHiddenDealKeys
-                  : [];
-                const directSyncTermCounts =
-                  syncBaseState.hiddenCountsByTerm &&
-                  typeof syncBaseState.hiddenCountsByTerm === "object"
-                    ? syncBaseState.hiddenCountsByTerm
-                    : {};
-
-                const parsedChunkKeys = parseChunkedJsonPayload(
-                  serializedSyncKeys,
-                  directSyncKeys
-                );
-                const parsedChunkTermCounts = parseChunkedJsonPayload(
-                  serializedSyncTermCounts,
-                  directSyncTermCounts
-                );
-
-                totalHiddenDealKeys = new Set(
-                  Array.isArray(parsedChunkKeys) ? parsedChunkKeys : directSyncKeys
-                );
-                hiddenCountsByTerm =
-                  parsedChunkTermCounts && typeof parsedChunkTermCounts === "object"
-                    ? parsedChunkTermCounts
-                    : directSyncTermCounts;
-                const syncCount = Number.isInteger(syncBaseState.totalHiddenDealCount)
-                  ? syncBaseState.totalHiddenDealCount
-                  : totalHiddenDealKeys.size;
-                totalHiddenDealCount = Math.max(syncCount, totalHiddenDealKeys.size);
-
-                if (
-                  totalHiddenDealCount > 0 ||
-                  totalHiddenDealKeys.size > 0 ||
-                  Object.keys(hiddenCountsByTerm).length > 0
-                ) {
-                  schedulePersistTotals();
-                }
-
-                log("Loaded total hidden deal state from sync fallback:", {
-                  totalHiddenDealCount,
-                  uniqueKeys: totalHiddenDealKeys.size,
-                  trackedFilterTerms: Object.keys(hiddenCountsByTerm).length,
-                });
-                resolve(totalHiddenDealCount);
-              };
-
-              if (chunkKeys.length === 0) {
-                finalizeFromSyncState({});
-                return;
-              }
-
-              chrome.storage.sync.get(chunkKeys, (syncChunkState) => {
-                finalizeFromSyncState(syncChunkState || {});
-              });
-            }
-          );
-          return;
-        }
 
         const savedCount = Number.isInteger(result.totalHiddenDealCount)
           ? result.totalHiddenDealCount
@@ -837,11 +725,10 @@ function incrementHiddenCountForTerm(rawTerm) {
 async function getRuntimeSettings() {
   return new Promise((resolve) => {
     try {
-      chrome.storage.sync.get(SETTINGS_STORAGE_KEYS, (result) => {
+      chrome.storage.sync.get(SYNC_SETTINGS_STORAGE_KEYS, (result) => {
         if (chrome.runtime.lastError) {
           log("Sync storage unavailable, trying local fallback:", chrome.runtime.lastError);
-          // If sync fails, try local
-          chrome.storage.local.get(SETTINGS_STORAGE_KEYS, (localResult) => {
+          chrome.storage.local.get(LOCAL_SETTINGS_STORAGE_KEYS, (localResult) => {
             const filterTerms = localResult.filterTerms || "";
             const exceptionTerms = localResult.exceptionTerms || "";
             const parsedFilterTerms = parseTermEntries(filterTerms);
@@ -865,6 +752,7 @@ async function getRuntimeSettings() {
               autoSortComments: localResult[AUTO_SORT_COMMENTS_KEY] === true,
               greyOutSeenDeals: localResult[GREY_OUT_SEEN_DEALS_KEY] === true,
               greyOutOpacityPercent: normalizeOpacityPercent(localResult[GREY_OUT_OPACITY_KEY]),
+              keywordShortcut: localResult.keywordShortcut || "",
               filterTermCategories: resolvedCategories,
               categoryStates: resolvedCategoryStates,
             });
@@ -874,68 +762,69 @@ async function getRuntimeSettings() {
 
         let filterTerms = result.filterTerms || "";
         let exceptionTerms = result.exceptionTerms || "";
-
-        // If sync is empty but we might have local data (e.g. sync failed previously)
-        if (!filterTerms && !exceptionTerms) {
-          chrome.storage.local.get(SETTINGS_STORAGE_KEYS, (localResult) => {
-            filterTerms = localResult.filterTerms || "";
-            exceptionTerms = localResult.exceptionTerms || "";
-            const parsedFilterTerms = parseTermEntries(filterTerms);
-            const resolvedCategories =
-              localResult[FILTER_CATEGORY_STORAGE_KEY] &&
-              typeof localResult[FILTER_CATEGORY_STORAGE_KEY] === "object"
-                ? localResult[FILTER_CATEGORY_STORAGE_KEY]
-                : {};
-            const resolvedCategoryStates =
-              localResult[CATEGORY_STATES_STORAGE_KEY] &&
-              typeof localResult[CATEGORY_STATES_STORAGE_KEY] === "object"
-                ? localResult[CATEGORY_STATES_STORAGE_KEY]
-                : {};
-            resolve({ 
-              filterTerms: getActiveFilterTermsFromCategories(
-                parsedFilterTerms,
-                resolvedCategories,
-                resolvedCategoryStates
-              ), 
-              exceptionTerms: parseTermEntries(exceptionTerms),
-              autoSortComments: localResult[AUTO_SORT_COMMENTS_KEY] === true,
-              greyOutSeenDeals: localResult[GREY_OUT_SEEN_DEALS_KEY] === true,
-              greyOutOpacityPercent: normalizeOpacityPercent(localResult[GREY_OUT_OPACITY_KEY]),
-              filterTermCategories: resolvedCategories,
-              categoryStates: resolvedCategoryStates,
+        chrome.storage.local.get([GREY_OUT_SEEN_DEALS_KEY], (localSeenSettings) => {
+          if (!filterTerms && !exceptionTerms) {
+            chrome.storage.local.get(LOCAL_SETTINGS_STORAGE_KEYS, (localResult) => {
+              filterTerms = localResult.filterTerms || "";
+              exceptionTerms = localResult.exceptionTerms || "";
+              const parsedFilterTerms = parseTermEntries(filterTerms);
+              const resolvedCategories =
+                localResult[FILTER_CATEGORY_STORAGE_KEY] &&
+                typeof localResult[FILTER_CATEGORY_STORAGE_KEY] === "object"
+                  ? localResult[FILTER_CATEGORY_STORAGE_KEY]
+                  : {};
+              const resolvedCategoryStates =
+                localResult[CATEGORY_STATES_STORAGE_KEY] &&
+                typeof localResult[CATEGORY_STATES_STORAGE_KEY] === "object"
+                  ? localResult[CATEGORY_STATES_STORAGE_KEY]
+                  : {};
+              resolve({ 
+                filterTerms: getActiveFilterTermsFromCategories(
+                  parsedFilterTerms,
+                  resolvedCategories,
+                  resolvedCategoryStates
+                ), 
+                exceptionTerms: parseTermEntries(exceptionTerms),
+                autoSortComments: localResult[AUTO_SORT_COMMENTS_KEY] === true,
+                greyOutSeenDeals: localSeenSettings[GREY_OUT_SEEN_DEALS_KEY] === true,
+                greyOutOpacityPercent: normalizeOpacityPercent(localResult[GREY_OUT_OPACITY_KEY]),
+                keywordShortcut: localResult.keywordShortcut || "",
+                filterTermCategories: resolvedCategories,
+                categoryStates: resolvedCategoryStates,
+              });
             });
-          });
-          return;
-        }
+            return;
+          }
 
-        const parsedFilterTerms = parseTermEntries(filterTerms);
-        const resolvedCategories =
-          result[FILTER_CATEGORY_STORAGE_KEY] && typeof result[FILTER_CATEGORY_STORAGE_KEY] === "object"
-            ? result[FILTER_CATEGORY_STORAGE_KEY]
-            : {};
-        const resolvedCategoryStates =
-          result[CATEGORY_STATES_STORAGE_KEY] && typeof result[CATEGORY_STATES_STORAGE_KEY] === "object"
-            ? result[CATEGORY_STATES_STORAGE_KEY]
-            : {};
-        resolve({ 
-          filterTerms: getActiveFilterTermsFromCategories(
-            parsedFilterTerms,
-            resolvedCategories,
-            resolvedCategoryStates
-          ), 
-          exceptionTerms: parseTermEntries(exceptionTerms),
-          autoSortComments: result[AUTO_SORT_COMMENTS_KEY] === true,
-          greyOutSeenDeals: result[GREY_OUT_SEEN_DEALS_KEY] === true,
-          greyOutOpacityPercent: normalizeOpacityPercent(result[GREY_OUT_OPACITY_KEY]),
-          filterTermCategories: resolvedCategories,
-          categoryStates: resolvedCategoryStates,
+          const parsedFilterTerms = parseTermEntries(filterTerms);
+          const resolvedCategories =
+            result[FILTER_CATEGORY_STORAGE_KEY] && typeof result[FILTER_CATEGORY_STORAGE_KEY] === "object"
+              ? result[FILTER_CATEGORY_STORAGE_KEY]
+              : {};
+          const resolvedCategoryStates =
+            result[CATEGORY_STATES_STORAGE_KEY] && typeof result[CATEGORY_STATES_STORAGE_KEY] === "object"
+              ? result[CATEGORY_STATES_STORAGE_KEY]
+              : {};
+          resolve({ 
+            filterTerms: getActiveFilterTermsFromCategories(
+              parsedFilterTerms,
+              resolvedCategories,
+              resolvedCategoryStates
+            ), 
+            exceptionTerms: parseTermEntries(exceptionTerms),
+            autoSortComments: result[AUTO_SORT_COMMENTS_KEY] === true,
+            greyOutSeenDeals: localSeenSettings[GREY_OUT_SEEN_DEALS_KEY] === true,
+            greyOutOpacityPercent: normalizeOpacityPercent(result[GREY_OUT_OPACITY_KEY]),
+            keywordShortcut: result.keywordShortcut || "",
+            filterTermCategories: resolvedCategories,
+            categoryStates: resolvedCategoryStates,
+          });
         });
       });
     } catch (error) {
       log("Exception getting filter terms:", error);
-      // Final fallback to local
       try {
-        chrome.storage.local.get(SETTINGS_STORAGE_KEYS, (localResult) => {
+        chrome.storage.local.get(LOCAL_SETTINGS_STORAGE_KEYS, (localResult) => {
           const parsedFilterTerms = parseTermEntries(localResult.filterTerms || "");
           const resolvedCategories =
             localResult[FILTER_CATEGORY_STORAGE_KEY] &&
@@ -957,6 +846,7 @@ async function getRuntimeSettings() {
             autoSortComments: localResult[AUTO_SORT_COMMENTS_KEY] === true,
             greyOutSeenDeals: localResult[GREY_OUT_SEEN_DEALS_KEY] === true,
             greyOutOpacityPercent: normalizeOpacityPercent(localResult[GREY_OUT_OPACITY_KEY]),
+            keywordShortcut: localResult.keywordShortcut || "",
             filterTermCategories: resolvedCategories,
             categoryStates: resolvedCategoryStates,
           });
@@ -1492,6 +1382,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       });
   } else if (request.type === "getHiddenDeals") {
     sendResponse({ hiddenDeals: [...hiddenDeals] }); // Return a copy of the hidden deals array
+  } else if (request.type === "seenDealsReset") {
+    log("Resetting seen deals state as requested by user");
+    seenDealUrls = {};
+    clearSeenDealPresentation();
+    cleanupSeenDealObserverState();
+    // Re-run filter to ensure everything is visible and correctly styled
+    filterPostings({ fullRescan: true });
+    sendResponse({ status: "seen deals reset" });
   }
   return true; // Required to keep message channel open for async response
 });
@@ -1541,87 +1439,3 @@ async function init() {
 
 // Start the filter
 init();
-
-// Removed periodic refiltering as mutation observer handles dynamic content
-// This prevents unnecessary repeated filtering that may cause flickering
-
-
-// Infinite scroll triggering for pages that don't normally do it (like /gruppe/freebies)
-let scrollTimeout = null;
-const SCROLL_DEBOUNCE_MS = 500; // Increased debounce to prevent rapid triggering
-const SCROLL_TRIGGER_THRESHOLD = 0.5; // Trigger at 50% instead of 80%
-let infiniteScrollEnabled = false;
-let lastTriggeredPageHeight = 0; // Track page height when last triggered
-let isTriggeringScroll = false; // Lock to prevent concurrent triggers
-
-// Load the infinite scroll setting
-async function loadInfiniteScrollSetting() {
-  try {
-    const result = await new Promise((resolve) => {
-      chrome.storage.local.get(['infiniteScrollImprovements'], (data) => {
-        resolve(data);
-      });
-    });
-    infiniteScrollEnabled = result.infiniteScrollImprovements === true;
-    // Also check sync storage as fallback
-    if (infiniteScrollEnabled === undefined) {
-      chrome.storage.sync.get(['infiniteScrollImprovements'], (data) => {
-        infiniteScrollEnabled = data.infiniteScrollImprovements === true;
-      });
-    }
-  } catch (error) {
-    console.error('Failed to load infinite scroll setting:', error);
-    infiniteScrollEnabled = false;
-  }
-}
-
-// Initialize the setting on load
-loadInfiniteScrollSetting();
-
-function triggerInfiniteScroll() {
-  if (!infiniteScrollEnabled) {
-    return;
-  }
-  
-  // Prevent concurrent triggers
-  if (isTriggeringScroll) {
-    return;
-  }
-  
-  if (isDealDetailsPage()) {
-    return;
-  }
-
-  const scrollPosition = window.innerHeight + window.scrollY;
-  const pageHeight = document.body.offsetHeight;
-  const scrollPercent = scrollPosition / pageHeight;
-
-  // Don't trigger if already at the bottom of the page
-  if (scrollPosition >= pageHeight - 100) { // Within 100px of bottom
-    return;
-  }
-
-  // Only trigger when going over the 50% threshold of loaded deals
-  // AND only if the page has grown since last trigger (new content loaded)
-  if (scrollPercent >= SCROLL_TRIGGER_THRESHOLD && pageHeight > lastTriggeredPageHeight) {
-    isTriggeringScroll = true;
-    lastTriggeredPageHeight = pageHeight;
-    
-    // Use a smaller scroll increment to avoid erratic behavior
-    const scrollIncrement = Math.min(window.innerHeight * 0.3, 500);
-    window.scrollBy({ top: scrollIncrement, behavior: 'smooth' });
-    log("Triggered infinite scroll - scrolled down to load more content");
-    
-    // Release lock after scroll completes
-    setTimeout(() => {
-      isTriggeringScroll = false;
-    }, SCROLL_DEBOUNCE_MS);
-  }
-}
-
-function handleScroll() {
-  clearTimeout(scrollTimeout);
-  scrollTimeout = setTimeout(triggerInfiniteScroll, SCROLL_DEBOUNCE_MS);
-}
-
-window.addEventListener('scroll', handleScroll, { passive: true });

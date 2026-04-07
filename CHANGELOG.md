@@ -2,6 +2,55 @@
 
 All notable changes to this project are documented in this file.
 
+## 1.0.12 - 2026-04-07
+
+### Added
+- **Helpful comment sorting via XHR**: Auto-sort comments on deal detail pages by loading the helpful-sorted comments via mydealz GraphQL/XHR API and reordering the DOM accordingly.
+- **Keyboard shortcut functionality**: Added keyboard shortcuts for quick access to extension features (Ctrl+Shift+K / Command+Shift+K to open keyword dialog).
+
+### Changed
+- **Comment sorting behavior**: Removed dropdown interaction from comment auto-sort - the extension no longer opens or clicks the mydealz sort menu when auto-sorting comments on deal pages.
+- **Storage split optimization**: Refined storage responsibilities - `sync` storage now owns filter keywords, exception terms, category config, comment auto-sort, grey-out opacity, and shortcut preference; `local` storage now owns `greyOutSeenDeals`, seen-deal state, and hidden/count cache state.
+- **Migration logic**: Added automatic local-to-sync settings migration for users with legacy local settings.
+
+### Removed
+- **Manual scroll trigger**: Removed remaining manual scroll functionality including the `Scroll further` button and delayed initialization code from live extension code.
+- **Sync storage for hidden/count cache**: Stopped syncing hidden/count cache data (`totalHiddenDealCount`, `totalHiddenDealKeys`, `hiddenCountsByTerm`) - now persisted in local storage only.
+
+### Fixed
+- Comment sorter menu no longer opens/stays open after automatic selection.
+- Storage usage optimized - hidden/count cache no longer writes to sync storage.
+
+## 1.0.11 - 2026-03-20
+
+### Added
+- **Manual "Scroll further" button**: Added a dedicated button at the bottom of deal lists on homepage and /heisseste that fetches and appends next-page deals directly to the current list without a page reload or jump.
+- **Reset Seen Deals option**: Added a button in the extension settings to clear the local cache of deals that have been "seen" (scrolled past), allowing users to reset the greying-out effect.
+
+### Removed
+- **Automatic infinite scroll improvements**: Removed all auto-navigation and threshold-based scrolling logic to prevent erratic behavior.
+- **Infinite scroll toggle**: Removed the toggle from the options page as the feature is now manual.
+
+### Fixed
+- **Comment sorter menu**: Fixed an issue where the sort dropdown would sometimes stay open after automatic selection.
+- **Sync storage state**: Fixed a minor bug in hidden deal key synchronization logic.
+
+## 1.0.10 - 2026-03-20
+- **Auto-navigate**: Automatically navigates to next page when scrolling past 50% threshold
+- **Load More button**: Shows "Mehr Deals laden (Seite N)" button at 30% scroll position for manual navigation
+- **End-of-results detection**: Gracefully stops when no more pages available
+- **History management**: Uses `history.replaceState()` to avoid cluttering browser history
+- **Dark mode support**: Load More button adapts to system theme preference
+- **Universal support**: Works on all paginated pages (/heisseste, homepage, /gruppe/*, search results)
+
+### Technical
+- Added `getCurrentPageFromUrl()` to parse `?page=N` from URL
+- Added `checkHasNextPage()` to detect if more pages exist via pagination selectors
+- Added `navigateToNextPage()` to handle URL navigation with history replacement
+- Added `createLoadMoreButton()` and `insertLoadMoreButton()` for manual navigation UI
+- Added page tracking with `lastNavigatedPage` to prevent duplicate navigation
+- Added comprehensive debug logging for scroll navigation events
+
 ## 1.0.10 - 2026-03-20
 
 ### Release

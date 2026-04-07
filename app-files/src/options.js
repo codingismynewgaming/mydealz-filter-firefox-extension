@@ -11,6 +11,7 @@ const autoSortCommentsCheckbox = document.getElementById("autoSortComments");
 const greyOutSeenDealsCheckbox = document.getElementById("greyOutSeenDeals");
 const greyOutOpacityRange = document.getElementById("greyOutOpacity");
 const greyOutOpacityValue = document.getElementById("greyOutOpacityValue");
+const keywordShortcutInput = document.getElementById("keywordShortcut");
 const newCategoryNameInput = document.getElementById("newCategoryName");
 const createCategoryBtn = document.getElementById("createCategoryBtn");
 const enableAllCategoriesBtn = document.getElementById("enableAllCategoriesBtn");
@@ -20,17 +21,18 @@ const categoriesList = document.getElementById("categoriesList");
 const hiddenDealsList = document.getElementById("hiddenDealsList");
 const noHiddenDeals = document.getElementById("noHiddenDeals");
 const refreshHiddenBtn = document.getElementById("refreshHiddenBtn");
+const resetSeenDealsBtn = document.getElementById("resetSeenDealsBtn");
 const MYDEALZ_BASE_HOST = "mydealz.de";
 const FILTER_STORAGE_KEYS = [
     "keywordShortcut",
     "filterTerms",
     "exceptionTerms",
     "autoSortComments",
-    "greyOutSeenDeals",
     "greyOutOpacityPercent",
     "filterTermCategories",
     "categoryStates",
 ];
+const LOCAL_ONLY_SETTINGS_KEYS = ["greyOutSeenDeals"];
 const BACKUP_FORMAT = "mydealz-filter-backup";
 const BACKUP_SCHEMA_VERSION = 2;
 const DEFAULT_CATEGORY_NAME = "Uncategorized";
@@ -65,29 +67,22 @@ function autoGrowTextarea(textarea) {
 }
 
 function setupKeyboardShortcutField() {
-  const keywordShortcutInput = document.getElementById("keywordShortcut");
   const openShortcutSettingsBtn = document.getElementById("openShortcutSettingsBtn");
 
   if (!keywordShortcutInput) return;
 
-  // Get current shortcut from browser API (shows the actual assigned shortcut)
+  loadStoredShortcutPreference().then((storedShortcut) => {
+    keywordShortcutInput.value = storedShortcut;
+  });
+
   if (chrome.commands && chrome.commands.getAll) {
     chrome.commands.getAll((commands) => {
       const command = commands.find(cmd => cmd.name === "open-keyword-dialog");
       if (command && command.shortcut) {
         keywordShortcutInput.value = command.shortcut;
-        // Also save to localStorage for popup usage
         localStorage.setItem("keywordShortcut", command.shortcut);
-      } else {
-        // Fallback to localStorage or default
-        const storedShortcut = localStorage.getItem("keywordShortcut") || "Ctrl+Shift+K";
-        keywordShortcutInput.value = storedShortcut;
       }
     });
-  } else {
-    // Fallback for browsers without commands API
-    const storedShortcut = localStorage.getItem("keywordShortcut") || "Ctrl+Shift+K";
-    keywordShortcutInput.value = storedShortcut;
   }
 
   // Handle input changes - try to update via API
@@ -154,7 +149,7 @@ function setupClickToEditTextarea(textarea) {
 }
 
 function setupClickToEditKeywordFields() {
-       setupClickToEditTextarea(keywordShortcutInput);
+  setupClickToEditTextarea(keywordShortcutInput);
   setupClickToEditTextarea(filterTermsTextarea);
   setupClickToEditTextarea(exceptionTermsTextarea);
 }
@@ -217,6 +212,40 @@ function storageSet(area, data) {
       resolve({ error: null });
     });
   });
+}
+
+function isSyncSettingsEmpty(settings) {
+  return !(
+    settings?.filterTerms ||
+    settings?.exceptionTerms ||
+    settings?.autoSortComments === true ||
+    Number.isFinite(Number(settings?.[GREY_OUT_OPACITY_KEY])) ||
+    (isPlainObject(settings?.[FILTER_CATEGORY_STORAGE_KEY]) &&
+      Object.keys(settings[FILTER_CATEGORY_STORAGE_KEY]).length > 0) ||
+    (isPlainObject(settings?.[CATEGORY_STATES_STORAGE_KEY]) &&
+      Object.keys(settings[CATEGORY_STATES_STORAGE_KEY]).length > 0) ||
+    settings?.keywordShortcut
+  );
+}
+
+async function migrateLocalSettingsToSyncIfNeeded() {
+  const syncArea = getStorageArea("sync");
+  const localArea = getStorageArea("local");
+  if (!syncArea || !localArea) return false;
+
+  const { result: syncSettings, error: syncError } = await storageGet(syncArea, FILTER_STORAGE_KEYS);
+  if (syncError || !isSyncSettingsEmpty(syncSettings)) return false;
+
+  const { result: localSettings, error: localError } = await storageGet(localArea, FILTER_STORAGE_KEYS);
+  if (localError || isSyncSettingsEmpty(localSettings)) return false;
+
+  const { error } = await storageSet(syncArea, localSettings);
+  if (error) {
+    console.error("Sync storage error while migrating settings from local:", error);
+    return false;
+  }
+
+  return true;
 }
 
 function storageClear(area) {
@@ -383,13 +412,6 @@ async function persistCategoryConfiguration(categoryData, categoryStates) {
     }
   } else {
     syncError = true;
-  }
-
-  if (localArea) {
-    const { error } = await storageSet(localArea, payload);
-    if (error) {
-      console.error("Local storage error while saving categories:", error);
-    }
   }
 
   renderCategoryGroups();
@@ -768,6 +790,7 @@ async function loadFilterTerms() {
   let loadedFrom = "none";
   let filterTerms = "";
   let exceptionTerms = "";
+  await migrateLocalSettingsToSyncIfNeeded();
 
 // Always try sync first for the most up-to-date data.
    if (syncArea) {
@@ -781,32 +804,23 @@ async function loadFilterTerms() {
      }
      if (!error) {
        autoSortCommentsCheckbox.checked = result.autoSortComments === true;
-       greyOutSeenDealsCheckbox.checked = result.greyOutSeenDeals === true;
-       const infiniteScrollCheckbox = document.getElementById("infiniteScrollImprovements");
-       if (infiniteScrollCheckbox) {
-         infiniteScrollCheckbox.checked = result.infiniteScrollImprovements === true;
-       }
+       keywordShortcutInput.value = result.keywordShortcut || keywordShortcutInput.value;
        updateGreyOutOpacityUI(result[GREY_OUT_OPACITY_KEY]);
-     }
-   }
+       }
+       }
 
-// Fallback to local if sync yielded nothing or failed.
-   if (loadedFrom === "none" && localArea) {
-     const { result } = await storageGet(localArea, FILTER_STORAGE_KEYS);
-     if (result.filterTerms || result.exceptionTerms) {
-       filterTerms = result.filterTerms || "";
-       exceptionTerms = result.exceptionTerms || "";
-       loadedFrom = "local";
-     }
-     autoSortCommentsCheckbox.checked = result.autoSortComments === true;
-     greyOutSeenDealsCheckbox.checked = result.greyOutSeenDeals === true;
-     const infiniteScrollCheckbox = document.getElementById("infiniteScrollImprovements");
-     if (infiniteScrollCheckbox) {
-       infiniteScrollCheckbox.checked = result.infiniteScrollImprovements === true;
-     }
-     updateGreyOutOpacityUI(result[GREY_OUT_OPACITY_KEY]);
-   }
-
+       if (localArea) {
+       const { result } = await storageGet(localArea, [...FILTER_STORAGE_KEYS, ...LOCAL_ONLY_SETTINGS_KEYS]);
+       if (loadedFrom === "none" && (result.filterTerms || result.exceptionTerms)) {
+         filterTerms = result.filterTerms || "";
+         exceptionTerms = result.exceptionTerms || "";
+         loadedFrom = "local";
+         autoSortCommentsCheckbox.checked = result.autoSortComments === true;
+         keywordShortcutInput.value = result.keywordShortcut || keywordShortcutInput.value;
+         updateGreyOutOpacityUI(result[GREY_OUT_OPACITY_KEY]);
+       }
+       greyOutSeenDealsCheckbox.checked = result.greyOutSeenDeals === true;
+       }
   filterTermsTextarea.value = filterTerms;
   exceptionTermsTextarea.value = exceptionTerms;
   autoGrowKeywordTextareas();
@@ -815,6 +829,27 @@ async function loadFilterTerms() {
   currentCategoryStates = categoryConfig.categoryStates;
   renderCategoryGroups();
   return { storage: loadedFrom };
+}
+
+async function loadStoredShortcutPreference() {
+  const syncArea = getStorageArea("sync");
+  const localArea = getStorageArea("local");
+
+  if (syncArea) {
+    const { result, error } = await storageGet(syncArea, ["keywordShortcut", "customShortcut"]);
+    if (!error && (result.keywordShortcut || result.customShortcut)) {
+      return result.keywordShortcut || result.customShortcut;
+    }
+  }
+
+  if (localArea) {
+    const { result } = await storageGet(localArea, ["keywordShortcut", "customShortcut"]);
+    if (result.keywordShortcut || result.customShortcut) {
+      return result.keywordShortcut || result.customShortcut;
+    }
+  }
+
+  return localStorage.getItem("keywordShortcut") || "Ctrl+Shift+K";
 }
 
 async function saveFilterTerms() {
@@ -833,7 +868,7 @@ async function saveFilterTerms() {
     filterTerms,
     exceptionTerms,
     autoSortComments: autoSortCommentsCheckbox.checked,
-    greyOutSeenDeals: greyOutSeenDealsCheckbox.checked,
+    keywordShortcut: keywordShortcutInput.value.trim() || "Ctrl+Shift+K",
     [GREY_OUT_OPACITY_KEY]: getGreyOutOpacityPercent(),
     [FILTER_CATEGORY_STORAGE_KEY]: currentCategoryData,
     [CATEGORY_STATES_STORAGE_KEY]: currentCategoryStates,
@@ -869,9 +904,10 @@ async function saveFilterTerms() {
     syncError = true;
   }
 
-  // Always save to local as a reliable mirror.
   if (localArea) {
-    const { error } = await storageSet(localArea, payload);
+    const { error } = await storageSet(localArea, {
+      greyOutSeenDeals: greyOutSeenDealsCheckbox.checked,
+    });
     if (error) {
       console.error("Local storage error:", error);
       localError = true;
@@ -884,7 +920,7 @@ async function saveFilterTerms() {
     filterTerms,
     exceptionTerms,
     autoSortComments: payload.autoSortComments,
-    greyOutSeenDeals: payload.greyOutSeenDeals,
+    greyOutSeenDeals: greyOutSeenDealsCheckbox.checked,
     greyOutOpacityPercent: payload[GREY_OUT_OPACITY_KEY],
     storage: !syncError ? "sync" : "local",
     syncError,
@@ -896,18 +932,20 @@ async function saveFilterTerms() {
 }
 
 async function saveTogglePreferences() {
-   const payload = {
+   const syncPayload = {
      autoSortComments: autoSortCommentsCheckbox.checked,
-     greyOutSeenDeals: greyOutSeenDealsCheckbox.checked,
-     infiniteScrollImprovements: document.getElementById("infiniteScrollImprovements")?.checked || false,
+     keywordShortcut: keywordShortcutInput.value.trim() || "Ctrl+Shift+K",
      [GREY_OUT_OPACITY_KEY]: getGreyOutOpacityPercent(),
+   };
+   const localPayload = {
+     greyOutSeenDeals: greyOutSeenDealsCheckbox.checked,
    };
    const syncArea = getStorageArea("sync");
    const localArea = getStorageArea("local");
    let syncError = false;
 
    if (syncArea) {
-     const { error } = await storageSet(syncArea, payload);
+     const { error } = await storageSet(syncArea, syncPayload);
      syncError = !!error;
      if (error) {
        console.error("Sync storage error while saving toggle preferences:", error);
@@ -917,7 +955,7 @@ async function saveTogglePreferences() {
    }
 
    if (localArea) {
-     const { error } = await storageSet(localArea, payload);
+     const { error } = await storageSet(localArea, localPayload);
      if (error) {
        console.error("Local storage error while saving toggle preferences:", error);
      }
@@ -1258,6 +1296,29 @@ importFileInput.addEventListener("change", async (event) => {
 
 refreshHiddenBtn.addEventListener("click", () => {
   displayHiddenDeals();
+});
+
+resetSeenDealsBtn.addEventListener("click", async () => {
+  if (!confirm("Are you sure you want to clear your 'seen deals' history? All deals will look 'new' again.")) {
+    return;
+  }
+
+  const localArea = getStorageArea("local");
+  if (localArea) {
+    chrome.storage.local.remove("seenDealUrls", async () => {
+      if (chrome.runtime.lastError) {
+        showStatus("Error resetting seen deals cache.", "error");
+      } else {
+        showStatus("Seen deals history cleared!", "success");
+        // Notify content scripts to clear their local cache and UI
+        const tabs = await chrome.tabs.query({});
+        const mydealzDeTabs = tabs.filter((tab) => isMydealzDeUrl(tab.url));
+        for (const tab of mydealzDeTabs) {
+          chrome.tabs.sendMessage(tab.id, { type: "seenDealsReset" });
+        }
+      }
+    });
+  }
 });
 
 createCategoryBtn.addEventListener("click", async () => {
