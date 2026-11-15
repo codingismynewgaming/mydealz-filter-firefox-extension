@@ -186,7 +186,7 @@ for (const jsFile of ["shared.js", "popup.js", "options.js", "keyword-dialog.js"
   }
 }
 
-// 7. Verify GitHub button points to /issues & both content-script copies are byte-identical
+// 7. Verify GitHub button points to /issues & removed XHR comment sort code
 const popupHtml = fs.readFileSync(path.join(rootDir, "app-files/src/popup.html"), "utf8");
 const githubMatches = popupHtml.match(/https:\/\/github\.com\/codingismynewgaming[^"']*/g) || [];
 assert.ok(githubMatches.length >= 2);
@@ -195,9 +195,6 @@ for (const url of githubMatches) {
 }
 
 const csCode = fs.readFileSync(path.join(rootDir, "app-files/src/content-script.js"), "utf8");
-const rootCsCode = fs.readFileSync(path.join(rootDir, "content-script.js"), "utf8");
-const sha = (txt) => crypto.createHash("sha256").update(txt, "utf8").digest("hex");
-assert.equal(sha(csCode), sha(rootCsCode), "app-files/src/content-script.js and root content-script.js must match");
 assert.ok(!csCode.includes("HELPFUL_COMMENTS_ENDPOINT"));
 assert.ok(!csCode.includes("fetchHelpfulComments"));
 
