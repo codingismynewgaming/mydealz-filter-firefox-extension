@@ -1,0 +1,173 @@
+{
+  "extensionName": { "message": "mydealz.de Filter" },
+  "extensionDescription": { "message": "Filtert mydealz.de-Beiträge anhand von Schlüsselwörtern im Titel. Blendet unerwünschte Deals aus und zeigt die Trefferzahl." },
+  "commandOpenKeywordDialog": { "message": "Dialog zum Hinzufügen eines Filterbegriffs öffnen" },
+  "popupSubtitle": { "message": "Beiträge nach Begriffen ausblenden" },
+  "popupSubtitleWithTotal": {
+    "message": "Beiträge nach Begriffen ausblenden • Gesamt ausgeblendet: $COUNT$",
+    "placeholders": { "count": { "content": "$1" } }
+  },
+  "optionsTitle": { "message": "mydealz.de Filter Einstellungen" },
+  "optionsSubtitle": { "message": "Filter- und Ausnahmebegriffe festlegen" },
+  "themeDark": { "message": "Dunkel" },
+  "themeLight": { "message": "Hell" },
+  "themeToggleTitle": { "message": "Design umschalten" },
+  "themeSwitchToLight": { "message": "Zum hellen Design wechseln" },
+  "themeSwitchToDark": { "message": "Zum dunklen Design wechseln" },
+  "tabHiddenPosts": { "message": "Ausgeblendet" },
+  "tabStatistics": { "message": "Statistik" },
+  "tabManageGroups": { "message": "Gruppen" },
+  "tabSettings": { "message": "Einstellungen" },
+  "tabInfo": { "message": "Info" },
+  "filterTermsLabel": { "message": "Filterbegriffe" },
+  "filterTermsPlaceholder": { "message": "Begriffe durch Komma getrennt eingeben\nBeispiel: iPhone, Apple, Samsung" },
+  "filterTermsHintPopup": { "message": "Zum Bearbeiten ins Feld klicken. Begriffe mit Komma trennen. Beiträge mit diesen Begriffen im Titel werden ausgeblendet, sofern kein Ausnahmebegriff zutrifft." },
+  "filterTermsHintOptions": { "message": "Zum Bearbeiten ins Feld klicken. Deals mit diesen Begriffen im Titel werden ausgeblendet, sofern kein Ausnahmebegriff greift." },
+  "exceptionTermsLabel": { "message": "Ausnahmebegriffe" },
+  "exceptionTermsPlaceholder": { "message": "Ausnahmen durch Komma getrennt eingeben\nBeispiel: Android, Windows" },
+  "exceptionTermsHintPopup": { "message": "Zum Bearbeiten ins Feld klicken. Begriffe mit Komma trennen. Beiträge mit diesen Begriffen bleiben sichtbar, selbst wenn ein Filterbegriff vorkommt." },
+  "exceptionTermsHintOptions": { "message": "Zum Bearbeiten ins Feld klicken. Deals mit diesen Begriffen bleiben trotz Filterbegriffen sichtbar." },
+  "saveFiltersBtn": { "message": "Filter speichern" },
+  "exportFiltersBtn": { "message": "Filter exportieren" },
+  "importFiltersBtn": { "message": "Filter importieren" },
+  "importHintPopup": { "message": "Der Import öffnet die Einstellungsseite. Klicke dort erneut auf Importieren." },
+  "preferencesHeading": { "message": "Einstellungen" },
+  "preferencesCopy": { "message": "Optionale Komfortfunktionen für mydealz.de." },
+  "shortcutLabelPopup": { "message": "Tastenkürzel" },
+  "shortcutLabelOptions": { "message": "Tastenkürzel für neue Begriffe" },
+  "changeShortcutBtn": { "message": "Im Browser ändern" },
+  "shortcutHintPopup": { "message": "Öffne die Tastenkürzel-Einstellungen der Erweiterungen in deinem Browser." },
+  "shortcutHintOptions": { "message": "Öffne die Tastenkürzel-Einstellungen der Erweiterungen in deinem Browser." },
+  "shortcutManualHint": { "message": "Öffne die Tastenkürzel-Einstellungen der Erweiterungen in deinem Browser." },
+  "autoSortTitlePopup": { "message": "Kommentare automatisch sortieren" },
+  "autoSortDescPopup": { "message": "Stellt die Sortierung auf Dealseiten auf \"Am hilfreichsten\"." },
+  "autoSortTitleOptions": { "message": "Kommentare auf \"Am hilfreichsten\" sortieren" },
+  "autoSortDescOptions": { "message": "Nur auf Deal-Detailseiten. Standardmäßig deaktiviert." },
+  "greyOutTitle": { "message": "Gesehene Deals ausgrauen" },
+  "greyOutDescPopup": { "message": "Blendet gesehene Deals schwächer ein, nachdem sie aus dem Sichtbereich gescrollt wurden." },
+  "greyOutDescOptions": { "message": "Deals bleiben klickbar, verblassen aber nach dem Vorbeiscrollen oder Verlassen der Dealseite." },
+  "greyOutOpacityTitle": { "message": "Deckkraft beim Ausgrauen" },
+  "greyOutOpacityDescPopup": { "message": "Legt fest, wie blass gesehene Deals dargestellt werden." },
+  "greyOutOpacityDescOptions": { "message": "Deckkraft gesehener Deals festlegen (0% = unsichtbar, 100% = normal)." },
+  "seenCacheLabel": { "message": "Verlauf gesehener Deals" },
+  "seenCacheHint": { "message": "Löscht die gespeicherten bereits gesehenen Deals, sodass sie wieder normal erscheinen." },
+  "resetSeenDealsBtn": { "message": "Verlauf zurücksetzen" },
+  "resetSeenDealsConfirm": { "message": "Verlauf gesehener Deals wirklich löschen? Alle Deals erscheinen wieder als neu." },
+  "resetSeenDealsDone": { "message": "Verlauf gesehener Deals gelöscht." },
+  "categoriesHeading": { "message": "Filterkategorien" },
+  "categoriesCopy": { "message": "Ordne Filterbegriffe in Kategorien, schalte Gruppen ein oder aus und sieh Trefferzahlen in der Statistik." },
+  "newCategoryPlaceholder": { "message": "Neuer Kategoriename" },
+  "createCategoryBtn": { "message": "Kategorie erstellen" },
+  "enableAllBtn": { "message": "Alle aktivieren" },
+  "disableAllBtn": { "message": "Alle deaktivieren" },
+  "categorySummary": {
+    "message": "$ACTIVE$ von $TOTAL$ Kategorien aktiv",
+    "placeholders": {
+      "active": { "content": "$1" },
+      "total": { "content": "$2" }
+    }
+  },
+  "hiddenDealsHeading": { "message": "Ausgeblendete Deals" },
+  "refreshBtn": { "message": "Aktualisieren" },
+  "howToUseHeading": { "message": "Kurzanleitung:" },
+  "howToUseStep1": { "message": "Filterbegriffe mit Komma getrennt eingeben" },
+  "howToUseStep2": { "message": "Auf \"Filter speichern\" klicken" },
+  "howToUseStep3": { "message": "mydealz.de besuchen: passende Beiträge werden ausgeblendet" },
+  "howToUseStep4": { "message": "Das Symbol zeigt die Anzahl ausgeblendeter Deals" },
+  "noHiddenDeals": { "message": "Auf dieser Seite wurden keine Deals ausgeblendet." },
+  "visitMydealzHiddenDeals": { "message": "Besuche mydealz.de, um ausgeblendete Deals zu sehen." },
+  "openTabHiddenDeals": { "message": "Öffne einen mydealz.de-Tab, um ausgeblendete Deals zu sehen." },
+  "hiddenDealsUnavailable": { "message": "Vorschau ausgeblendeter Deals ist auf dieser Plattform nicht verfügbar." },
+  "hiddenDealsLoadError": { "message": "Ausgeblendete Deals konnten nicht geladen werden." },
+  "hiddenByTerm": {
+    "message": "Ausgeblendet durch: \"$TERM$\"",
+    "placeholders": { "term": { "content": "$1" } }
+  },
+  "statsGroupedBtn": { "message": "Gruppiert" },
+  "statsUngroupedBtn": { "message": "Einzeln" },
+  "statsCreateGroupBtn": { "message": "Gruppe erstellen" },
+  "statsNoData": { "message": "Noch keine Statistik. Surfe auf mydealz.de, um Treffer zu sammeln." },
+  "statsAddTermsFirst": { "message": "Lege in den Einstellungen Filterbegriffe an, um Statistiken zu sehen." },
+  "noGroupsData": { "message": "Noch keine Kategorien oder Gruppen vorhanden. Erstelle eine unter Statistik oder Einstellungen." },
+  "statsHiddenCount": {
+    "message": "$COUNT$ ausgeblendet",
+    "placeholders": { "count": { "content": "$1" } }
+  },
+  "statsTermCount": {
+    "message": "$COUNT$ Begriffe",
+    "placeholders": { "count": { "content": "$1" } }
+  },
+  "showLabel": { "message": "Zeigen" },
+  "hideLabel": { "message": "Verbergen" },
+  "renameLabel": { "message": "Umbenennen" },
+  "deleteLabel": { "message": "Löschen" },
+  "saveLabel": { "message": "Speichern" },
+  "cancelLabel": { "message": "Abbrechen" },
+  "createLabel": { "message": "Erstellen" },
+  "addTermLabel": { "message": "Hinzufügen" },
+  "groupNamePlaceholder": { "message": "Kategorie- oder Gruppenname..." },
+  "addUngroupedTermPlaceholder": { "message": "Begriff hinzufügen..." },
+  "noUngroupedTermsLeft": { "message": "Keine freien Begriffe mehr" },
+  "donateText": { "message": "Dir gefällt die Erweiterung? Spendiere mir gern einen Kaffee oder unterstütze die Entwicklung via PayPal." },
+  "donateIssuesBtn": { "message": "Problem melden / Wunsch senden" },
+  "donateCoffeeBtn": { "message": "Buy me a coffee" },
+  "donatePaypalBtn": { "message": "Über PayPal spenden" },
+  "donateGithubBtn": { "message": "GitHub" },
+  "keywordDialogTitle": { "message": "Filterbegriff hinzufügen - mydealz.de Filter" },
+  "keywordDialogHeading": { "message": "Filterbegriff hinzufügen" },
+  "keywordDialogPlaceholder": { "message": "Begriff zum Filtern eingeben..." },
+  "keywordDialogAddBtn": { "message": "Begriff hinzufügen" },
+  "keywordDialogCloseBtn": { "message": "Schließen" },
+  "keywordDialogEnterTerm": { "message": "Bitte einen Begriff eingeben." },
+  "keywordDialogDuplicate": {
+    "message": "\"$TERM$\" steht bereits in deiner Filterliste.",
+    "placeholders": { "term": { "content": "$1" } }
+  },
+  "keywordDialogAdded": {
+    "message": "\"$TERM$\" zu den Filtern hinzugefügt.",
+    "placeholders": { "term": { "content": "$1" } }
+  },
+  "keywordDialogSavedLocal": {
+    "message": "\"$TERM$\" lokal gespeichert (Sync-Fehler).",
+    "placeholders": { "term": { "content": "$1" } }
+  },
+  "keywordDialogSaveError": { "message": "Fehler beim Speichern des Begriffs." },
+  "versionLabel": {
+    "message": "Version $VERSION$",
+    "placeholders": { "version": { "content": "$1" } }
+  },
+  "dealSeenOn": {
+    "message": "Gesehen am $DATE$",
+    "placeholders": { "date": { "content": "$1" } }
+  },
+  "pageNumberLabel": {
+    "message": "Seite $PAGE$",
+    "placeholders": { "page": { "content": "$1" } }
+  },
+  "moreDealsLabel": { "message": "Weitere Deals" },
+  "pageLoaded": {
+    "message": "$LABEL$ geladen",
+    "placeholders": { "label": { "content": "$1" } }
+  },
+  "batchSummaryWithHidden": {
+    "message": "$VISIBLE$ sichtbar · $HIDDEN$ ausgeblendet",
+    "placeholders": {
+      "visible": { "content": "$1" },
+      "hidden": { "content": "$2" }
+    }
+  },
+  "batchSummaryVisibleOnly": {
+    "message": "$VISIBLE$ sichtbar",
+    "placeholders": { "visible": { "content": "$1" } }
+  },
+  "allDealsHiddenNotice": { "message": "Keine sichtbaren Deals mehr auf dieser Seite. Passe deine Filter an oder scrolle weiter." },
+  "categoryEnabledStatus": {
+    "message": "$NAME$ aktiviert.",
+    "placeholders": { "name": { "content": "$1" } }
+  },
+  "categoryDisabledStatus": {
+    "message": "$NAME$ deaktiviert.",
+    "placeholders": { "name": { "content": "$1" } }
+  },
+  "dropTermsHint": { "message": "Filterbegriffe hierher ziehen." }
+}

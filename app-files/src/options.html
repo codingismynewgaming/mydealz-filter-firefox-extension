@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>mydealz.de Filter Settings</title>
+    <title data-i18n="optionsTitle">mydealz.de Filter Settings</title>
     <link rel="stylesheet" href="options.css" />
   </head>
   <body>
@@ -11,48 +11,50 @@
       <section class="card">
         <header class="header">
           <div class="header-top">
-            <h1>mydealz.de Filter Settings</h1>
+            <h1 data-i18n="optionsTitle">mydealz.de Filter Settings</h1>
           </div>
-          <p class="subtitle">Set filter and exception keywords</p>
+          <p class="subtitle" data-i18n="optionsSubtitle">Set filter and exception keywords</p>
         </header>
 
         <div class="form-group">
-          <label for="filterTerms">Filter Terms</label>
+          <label for="filterTerms" data-i18n="filterTermsLabel">Filter Terms</label>
           <textarea
             id="filterTerms"
             rows="4"
             placeholder="Enter keywords separated by commas&#10;Example: iPhone, Apple, Samsung"
+            data-i18n-placeholder="filterTermsPlaceholder"
           ></textarea>
-          <p class="hint">
+          <p class="hint" data-i18n="filterTermsHintOptions">
             Click in this field to unlock editing. Deals containing these terms in the title will be hidden unless they also match an
             exception term.
           </p>
         </div>
 
         <div class="form-group">
-          <label for="exceptionTerms">Exception Terms</label>
+          <label for="exceptionTerms" data-i18n="exceptionTermsLabel">Exception Terms</label>
           <textarea
             id="exceptionTerms"
             rows="4"
             placeholder="Enter exception keywords separated by commas&#10;Example: Android, Windows"
+            data-i18n-placeholder="exceptionTermsPlaceholder"
           ></textarea>
-          <p class="hint">
+          <p class="hint" data-i18n="exceptionTermsHintOptions">
             Click in this field to unlock editing. Deals containing these terms remain visible even if they contain a filter term.
           </p>
         </div>
 
       <div class="button-group">
-        <button id="saveBtn" class="btn btn-primary" type="button">Save Filters</button>
+        <button id="saveBtn" class="btn btn-primary" type="button" data-i18n="saveFiltersBtn">Save Filters</button>
       </div>
 
       <section class="preferences-section" aria-labelledby="preferencesHeading">
         <div class="section-heading">
-          <h2 id="preferencesHeading">Preferences</h2>
-          <p class="section-copy">Optional quality-of-life features for browsing mydealz.de.</p>
+          <h2 id="preferencesHeading" data-i18n="preferencesHeading">Preferences</h2>
+          <p class="section-copy" data-i18n="preferencesCopy">Optional quality-of-life features for browsing mydealz.de.</p>
         </div>
 
         <div class="form-group">
-          <label for="keywordShortcut">Keyboard Shortcut for Adding Keywords</label>
+          <label for="keywordShortcut" data-i18n="shortcutLabelOptions">Keyboard Shortcut for Adding Keywords</label>
           <div class="shortcut-row">
             <input
               id="keywordShortcut"
@@ -62,34 +64,34 @@
               aria-label="Keyboard shortcut"
               readonly
             />
-            <button id="openShortcutSettingsBtn" class="btn btn-secondary" type="button">
-              Change in Firefox
+            <button id="openShortcutSettingsBtn" class="btn btn-secondary" type="button" data-i18n="changeShortcutBtn">
+              Change in browser
             </button>
           </div>
-          <p class="hint">
-            Current shortcut for opening the keyword dialog. Click "Change in Firefox" to modify it in Firefox's extension settings.
+          <p class="hint" data-i18n="shortcutHintOptions">
+            Open your browser's extension shortcuts page to change shortcuts.
           </p>
         </div>
 
         <label class="toggle-card" for="autoSortComments">
             <span class="toggle-copy">
-              <span class="toggle-title">Auto-sort comments to "am hilfreichsten"</span>
-              <span class="toggle-description">Only on deal detail pages. Disabled by default.</span>
+              <span class="toggle-title" data-i18n="autoSortTitleOptions">Auto-sort comments to "am hilfreichsten"</span>
+              <span class="toggle-description" data-i18n="autoSortDescOptions">Only on deal detail pages. Disabled by default.</span>
             </span>
             <input id="autoSortComments" type="checkbox" />
           </label>
 
          <label class="toggle-card" for="greyOutSeenDeals">
             <span class="toggle-copy">
-              <span class="toggle-title">Grey out seen deals</span>
-              <span class="toggle-description">Keeps deals clickable, but fades repeats only after you scroll past them or leave the deal page.</span>
+              <span class="toggle-title" data-i18n="greyOutTitle">Grey out seen deals</span>
+              <span class="toggle-description" data-i18n="greyOutDescOptions">Keeps deals clickable, but fades repeats only after you scroll past them or leave the deal page.</span>
             </span>
             <input id="greyOutSeenDeals" type="checkbox" />
           </label>
 
          <div class="range-card">            <div class="range-copy">
-              <label class="range-title" for="greyOutOpacity">Grey-out opacity</label>
-              <p class="range-description">Set how faded seen deals should look (0% = invisible, 100% = normal).</p>
+              <label class="range-title" for="greyOutOpacity" data-i18n="greyOutOpacityTitle">Grey-out opacity</label>
+              <p class="range-description" data-i18n="greyOutOpacityDescOptions">Set how faded seen deals should look (0% = invisible, 100% = normal).</p>
             </div>
             <div class="range-control">
               <input id="greyOutOpacity" type="range" min="0" max="100" step="1" />
@@ -98,11 +100,11 @@
           </div>
 
           <div class="form-group" style="margin-top: 20px; border-top: 1px solid var(--border-color); padding-top: 20px;">
-            <label>Seen Deals Cache</label>
-            <p class="hint" style="margin-bottom: 10px;">
+            <label data-i18n="seenCacheLabel">Seen Deals Cache</label>
+            <p class="hint" style="margin-bottom: 10px;" data-i18n="seenCacheHint">
               Clears the history of deals you've already scrolled past, so they won't be greyed out anymore.
             </p>
-            <button id="resetSeenDealsBtn" class="btn btn-secondary" type="button" style="width: auto;">
+            <button id="resetSeenDealsBtn" class="btn btn-secondary" type="button" style="width: auto;" data-i18n="resetSeenDealsBtn">
               Reset Seen Deals Cache
             </button>
           </div>
@@ -111,8 +113,8 @@
 
         <section class="categories-section" aria-labelledby="categoriesHeading">
           <div class="section-heading">
-            <h2 id="categoriesHeading">Filter Categories</h2>
-            <p class="section-copy">Organize filter terms into groups and toggle whole categories on or off.</p>
+            <h2 id="categoriesHeading" data-i18n="categoriesHeading">Filter Categories</h2>
+            <p class="section-copy" data-i18n="categoriesCopy">Organize filter terms into groups and toggle whole categories on or off.</p>
           </div>
 
           <div class="category-toolbar">
@@ -123,13 +125,14 @@
                 type="text"
                 maxlength="50"
                 placeholder="New category name"
+                data-i18n-placeholder="newCategoryPlaceholder"
                 aria-label="New category name"
               />
-              <button id="createCategoryBtn" class="btn btn-secondary" type="button">Create Category</button>
+              <button id="createCategoryBtn" class="btn btn-secondary" type="button" data-i18n="createCategoryBtn">Create Category</button>
             </div>
             <div class="category-bulk-actions">
-              <button id="enableAllCategoriesBtn" class="btn btn-secondary" type="button">Enable All</button>
-              <button id="disableAllCategoriesBtn" class="btn btn-secondary" type="button">Disable All</button>
+              <button id="enableAllCategoriesBtn" class="btn btn-secondary" type="button" data-i18n="enableAllBtn">Enable All</button>
+              <button id="disableAllCategoriesBtn" class="btn btn-secondary" type="button" data-i18n="disableAllBtn">Disable All</button>
             </div>
           </div>
 
@@ -138,9 +141,9 @@
         </section>
 
         <div class="transfer-group">
-          <button id="exportBtn" class="btn btn-secondary" type="button">Export Filters</button>
+          <button id="exportBtn" class="btn btn-secondary" type="button" data-i18n="exportFiltersBtn">Export Filters</button>
           <div class="file-picker-btn">
-            <button id="importBtn" class="btn btn-secondary" type="button">Import Filters</button>
+            <button id="importBtn" class="btn btn-secondary" type="button" data-i18n="importFiltersBtn">Import Filters</button>
             <input
               id="importFileInput"
               class="import-file-input import-file-input-overlay"
@@ -155,14 +158,14 @@
 
         <section class="hidden-section">
           <div class="hidden-section-header">
-            <h2>Hidden Deals (<span id="hiddenCount">0</span>)</h2>
-            <button id="refreshHiddenBtn" class="btn btn-secondary refresh-btn" type="button">
+            <h2><span data-i18n="hiddenDealsHeading">Hidden Deals</span> (<span id="hiddenCount">0</span>)</h2>
+            <button id="refreshHiddenBtn" class="btn btn-secondary refresh-btn" type="button" data-i18n="refreshBtn">
               Refresh
             </button>
           </div>
 
           <div id="hiddenDealsList" class="deals-list">
-            <p id="noHiddenDeals">No deals have been hidden on this page.</p>
+            <p id="noHiddenDeals" data-i18n="noHiddenDeals">No deals have been hidden on this page.</p>
           </div>
         </section>
 
@@ -198,6 +201,7 @@
       </section>
     </main>
 
+    <script src="shared.js"></script>
     <script src="options.js"></script>
   </body>
 </html>

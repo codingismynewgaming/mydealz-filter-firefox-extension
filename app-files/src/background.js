@@ -3,21 +3,12 @@
  * Handles badge updates and message routing
  */
 
-// Store hidden deals information by tab ID
 const hiddenDealsInfo = new Map();
-const MYDEALZ_BASE_HOST = "mydealz.de";
 const BADGE_RESYNC_MAX_ATTEMPTS = 4;
 const BADGE_RESYNC_RETRY_DELAY_MS = 350;
+const KEYWORD_DIALOG_PATH = "src/keyword-dialog.html";
 
-function isMydealzDeUrl(url) {
-  if (!url) return false;
-  try {
-    const hostname = new URL(url).hostname.toLowerCase();
-    return hostname === MYDEALZ_BASE_HOST || hostname.endsWith(`.${MYDEALZ_BASE_HOST}`);
-  } catch {
-    return false;
-  }
-}
+const { isMydealzDeUrl, getStorageArea, storageSet } = MydealzFilterShared;
 
 function setTabActionState(tabId, isMydealzDe, hiddenCount = 0) {
   if (tabId === undefined || tabId === null) return;
@@ -30,8 +21,11 @@ function setTabActionState(tabId, isMydealzDe, hiddenCount = 0) {
     chrome.action.setBadgeBackgroundColor({ tabId, color: "#4CAF50" });
     chrome.action.setIcon({
       path: {
+        "16": "icons/icon-16.png",
+        "32": "icons/icon-32.png",
         "48": "icons/icon-48.png",
         "96": "icons/icon-96.png",
+        "128": "icons/icon-128.png",
       },
       tabId,
     });
@@ -42,8 +36,11 @@ function setTabActionState(tabId, isMydealzDe, hiddenCount = 0) {
   chrome.action.setBadgeBackgroundColor({ tabId, color: "#808080" });
   chrome.action.setIcon({
     path: {
+      "16": "icons/icon-16-grey.png",
+      "32": "icons/icon-32-grey.png",
       "48": "icons/icon-48-grey.png",
       "96": "icons/icon-96-grey.png",
+      "128": "icons/icon-128-grey.png",
     },
     tabId,
   });
@@ -63,13 +60,17 @@ function requestHiddenDealsFromTab(tabId) {
   });
 }
 
-function setShortcutPreference(shortcut, callback) {
+async function setShortcutPreference(shortcut) {
   const payload = { customShortcut: shortcut, keywordShortcut: shortcut };
-  chrome.storage.sync.set(payload, () => {
-    chrome.storage.local.set(payload, () => {
-      callback?.();
-    });
-  });
+  const syncArea = getStorageArea("sync");
+  const localArea = getStorageArea("local");
+
+  if (syncArea) {
+    await storageSet(syncArea, payload);
+  }
+  if (localArea) {
+    await storageSet(localArea, payload);
+  }
 }
 
 async function syncTabActionState(tabId, attempt = 0) {
@@ -89,7 +90,7 @@ async function syncTabActionState(tabId, attempt = 0) {
       const deals = await requestHiddenDealsFromTab(tabId);
       hiddenDealsInfo.set(tabId, deals);
       setTabActionState(tabId, true, deals.length);
-    } catch (error) {
+    } catch {
       if (attempt < BADGE_RESYNC_MAX_ATTEMPTS) {
         setTimeout(() => {
           syncTabActionState(tabId, attempt + 1);
@@ -97,7 +98,6 @@ async function syncTabActionState(tabId, attempt = 0) {
         return;
       }
 
-      // Fallback to last known per-tab state when content script is not reachable.
       const cachedDeals = hiddenDealsInfo.get(tabId) || [];
       setTabActionState(tabId, true, cachedDeals.length);
     }
@@ -118,72 +118,72 @@ async function syncAllTabsActionState() {
   }
 }
 
-// Listen for messages from content script
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.type === "updateKeyboardShortcut") {
-    // Try to update the shortcut using chrome.commands.update
-    // Firefox supports this API
-    if (chrome.commands && chrome.commands.update) {
-      chrome.commands.update({
-        name: "open-keyword-dialog",
-        shortcut: request.shortcut
-      }, () => {
-        if (chrome.runtime.lastError) {
-          console.error("Failed to update keyboard shortcut:", chrome.runtime.lastError);
-          setShortcutPreference(request.shortcut, () => {
-            sendResponse({ status: "error", message: chrome.runtime.lastError.message, saved: true });
-          });
-        } else {
-          console.log("Keyboard shortcut updated to:", request.shortcut);
-          setShortcutPreference(request.shortcut, () => {
-            sendResponse({ status: "success", shortcut: request.shortcut });
-          });
-        }
-      });
-    } else {
-      setShortcutPreference(request.shortcut, () => {
-        sendResponse({ status: "saved", message: "Shortcut saved (commands.update not available)" });
-      });
-    }
-    return true; // Keep message channel open
+  if (!request || typeof request.type !== "string") {
+    return false;
   }
 
-  if (request.type === "getKeyboardShortcut") {
-    // Get current shortcut from Firefox
-    if (chrome.commands && chrome.commands.getAll) {
-      chrome.commands.getAll((commands) => {
-        const command = commands.find(cmd => cmd.name === "open-keyword-dialog");
-        if (command) {
-          sendResponse({ shortcut: command.shortcut, name: command.name });
-        } else {
-          sendResponse({ shortcut: null, error: "Command not found" });
-        }
-      });
-    } else {
-      chrome.storage.sync.get(["customShortcut", "keywordShortcut"], (syncResult) => {
-        if (!chrome.runtime.lastError && (syncResult.customShortcut || syncResult.keywordShortcut)) {
-          sendResponse({ shortcut: syncResult.customShortcut || syncResult.keywordShortcut || "Ctrl+Shift+K" });
-          return;
-        }
+  if (request.type === "updateKeyboardShortcut") {
+    if (chrome.commands && chrome.commands.update) {
+      chrome.commands.update(
+        {
+          name: "open-keyword-dialog",
+          shortcut: request.shortcut,
+        },
+        async () => {
+          if (chrome.runtime.lastError) {
+            console.error("Failed to update keyboard shortcut:", chrome.runtime.lastError);
+            sendResponse({
+              status: "error",
+              message: chrome.runtime.lastError.message,
+              saved: false,
+            });
+            return;
+          }
 
-        chrome.storage.local.get(["customShortcut", "keywordShortcut"], (result) => {
-          sendResponse({ shortcut: result.customShortcut || result.keywordShortcut || "Ctrl+Shift+K" });
-        });
-      });
+          await setShortcutPreference(request.shortcut);
+          sendResponse({ status: "success", shortcut: request.shortcut, saved: true });
+        }
+      );
+      return true;
     }
+
+    setShortcutPreference(request.shortcut).then(() => {
+      sendResponse({
+        status: "saved",
+        message: "Shortcut saved (commands.update not available)",
+        saved: true,
+      });
+    });
     return true;
   }
 
   if (request.type === "openShortcutSettings") {
-    // Open Firefox's extension shortcut settings page
-    if (chrome.commands && chrome.commands.openShortcutSettings) {
-      chrome.commands.openShortcutSettings();
-      sendResponse({ status: "opened" });
-    } else {
-      // Fallback: open about:addons shortcuts page
-      chrome.tabs.create({ url: "about:addons" });
-      sendResponse({ status: "fallback", message: "Opened about:addons" });
-    }
+    (async () => {
+      if (chrome.commands && typeof chrome.commands.openShortcutSettings === "function") {
+        try {
+          await chrome.commands.openShortcutSettings();
+          sendResponse({ status: "opened" });
+          return;
+        } catch (error) {
+          console.warn("openShortcutSettings failed:", error);
+        }
+      }
+
+      try {
+        const shortcutsUrl =
+          typeof navigator !== "undefined" && /Edg\//.test(navigator.userAgent)
+            ? "edge://extensions/shortcuts"
+            : "chrome://extensions/shortcuts";
+        await chrome.tabs.create({ url: shortcutsUrl });
+        sendResponse({ status: "opened" });
+      } catch (error) {
+        sendResponse({
+          status: "unsupported",
+          message: error?.message || "Could not open shortcut settings.",
+        });
+      }
+    })();
     return true;
   }
 
@@ -191,7 +191,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (sender.tab && sender.tab.id !== undefined) {
       const isMydealzDeTab = isMydealzDeUrl(sender.tab.url);
       if (isMydealzDeTab) {
-        hiddenDealsInfo.set(sender.tab.id, Array.isArray(request.hiddenDeals) ? request.hiddenDeals : []);
+        hiddenDealsInfo.set(
+          sender.tab.id,
+          Array.isArray(request.hiddenDeals) ? request.hiddenDeals : []
+        );
       } else {
         hiddenDealsInfo.delete(sender.tab.id);
       }
@@ -199,58 +202,64 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       setTabActionState(sender.tab.id, isMydealzDeTab, safeCount);
     }
     sendResponse({ status: "badge updated" });
-  } else if (request.type === "getHiddenDeals") {
-    // Send back the hidden deals for this tab
-    let deals = [];
-    if (sender.tab && sender.tab.id !== undefined) {
-      deals = hiddenDealsInfo.get(sender.tab.id) || [];
-    }
-    sendResponse({ hiddenDeals: deals });
+    return false;
   }
-  return true; // Required to keep message channel open for async response
+
+  return false;
 });
 
-// Handle tab activation to update badge and icon based on current website
-chrome.tabs.onActivated.addListener(async (activeInfo) => {
+chrome.tabs.onActivated.addListener((activeInfo) => {
   syncTabActionState(activeInfo.tabId);
 });
 
-// Handle tab updates to update badge and icon when URL changes
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
   if (changeInfo.status === "complete") {
     syncTabActionState(tabId);
   }
 });
 
-// Initialize badge when extension is loaded
 chrome.runtime.onInstalled.addListener(() => {
-  // Set default badge to grey with no text
   chrome.action.setBadgeText({ text: "" });
-  chrome.action.setBadgeBackgroundColor({ color: "#808080" }); // Grey color
+  chrome.action.setBadgeBackgroundColor({ color: "#808080" });
   syncAllTabsActionState();
 });
 
-// Ensure badge is cleared on startup
 chrome.runtime.onStartup.addListener(() => {
   chrome.action.setBadgeText({ text: "" });
-  chrome.action.setBadgeBackgroundColor({ color: "#808080" }); // Grey color
+  chrome.action.setBadgeBackgroundColor({ color: "#808080" });
   syncAllTabsActionState();
 });
 
-// Clean up hidden deals info when tab is closed
 chrome.tabs.onRemoved.addListener((tabId) => {
   hiddenDealsInfo.delete(tabId);
 });
 
-// Handle keyboard commands
+async function openOrFocusKeywordDialog() {
+  const dialogUrl = chrome.runtime.getURL(KEYWORD_DIALOG_PATH);
+  try {
+    const existingTabs = await chrome.tabs.query({ url: dialogUrl });
+    const existingTab = existingTabs.find((tab) => tab && tab.windowId !== undefined);
+    if (existingTab) {
+      await chrome.windows.update(existingTab.windowId, { focused: true });
+      if (existingTab.id !== undefined) {
+        await chrome.tabs.update(existingTab.id, { active: true });
+      }
+      return;
+    }
+  } catch (error) {
+    console.warn("Could not query existing keyword dialog windows:", error);
+  }
+
+  chrome.windows.create({
+    url: KEYWORD_DIALOG_PATH,
+    type: "popup",
+    width: 400,
+    height: 300,
+  });
+}
+
 chrome.commands.onCommand.addListener((command) => {
   if (command === "open-keyword-dialog") {
-    // Open the keyword dialog
-    chrome.windows.create({
-      url: "src/keyword-dialog.html",
-      type: "popup",
-      width: 400,
-      height: 300
-    });
+    openOrFocusKeywordDialog();
   }
 });

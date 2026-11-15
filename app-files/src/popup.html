@@ -3,53 +3,55 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>mydealz.de Filter</title>
+    <title data-i18n="extensionName">mydealz.de Filter</title>
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
     <div class="container">
       <div class="header">
         <div class="header-row">
-          <h1>mydealz.de Filter</h1>
+          <h1 data-i18n="extensionName">mydealz.de Filter</h1>
           <div class="header-controls">
-            <button id="themeToggleBtn" class="theme-toggle" type="button" title="Toggle theme">Dark</button>
+            <button id="themeToggleBtn" class="theme-toggle" type="button" title="Toggle theme" data-i18n-title="themeToggleTitle">Dark</button>
           </div>
         </div>
-        <p class="subtitle">Hide postings by keywords</p>
+        <p class="subtitle" data-i18n="popupSubtitle">Hide postings by keywords</p>
       </div>
 
       <!-- Tab Navigation -->
       <div class="tab-nav">
-        <button id="hiddenPostsTabBtn" class="tab-btn active">Hidden Posts (<span id="hiddenCount">0</span>)</button>
-        <button id="statisticsTabBtn" class="tab-btn">Statistics</button>
-        <button id="manageGroupsTabBtn" class="tab-btn">Manage Groups</button>
-        <button id="settingsTabBtn" class="tab-btn">Settings</button>
-        <button id="infoTabBtn" class="tab-btn">Info</button>
+        <button id="hiddenPostsTabBtn" class="tab-btn active"><span data-i18n="tabHiddenPosts">Hidden Posts</span> (<span id="hiddenCount">0</span>)</button>
+        <button id="statisticsTabBtn" class="tab-btn" data-i18n="tabStatistics">Statistics</button>
+        <button id="manageGroupsTabBtn" class="tab-btn" data-i18n="tabManageGroups">Manage Groups</button>
+        <button id="settingsTabBtn" class="tab-btn" data-i18n="tabSettings">Settings</button>
+        <button id="infoTabBtn" class="tab-btn" data-i18n="tabInfo">Info</button>
       </div>
 
       <!-- Settings Tab Content -->
       <div id="settingsTab" class="tab-content">
         <div class="form-group">
-          <label for="filterTerms">Filter Terms</label>
+          <label for="filterTerms" data-i18n="filterTermsLabel">Filter Terms</label>
           <textarea
             id="filterTerms"
             placeholder="Enter keywords separated by commas&#10;Example: iPhone, Apple, Samsung"
+            data-i18n-placeholder="filterTermsPlaceholder"
             rows="3"
           ></textarea>
-          <p class="hint">
+          <p class="hint" data-i18n="filterTermsHintPopup">
             Click in this field to unlock editing. Enter keywords separated by commas. Postings with these terms in the
             title will be hidden (unless they also contain an exception term).
           </p>
         </div>
 
         <div class="form-group">
-          <label for="exceptionTerms">Exception Terms</label>
+          <label for="exceptionTerms" data-i18n="exceptionTermsLabel">Exception Terms</label>
           <textarea
             id="exceptionTerms"
             placeholder="Enter exception keywords separated by commas&#10;Example: Android, Windows"
+            data-i18n-placeholder="exceptionTermsPlaceholder"
             rows="3"
           ></textarea>
-          <p class="hint">
+          <p class="hint" data-i18n="exceptionTermsHintPopup">
             Click in this field to unlock editing. Enter keywords separated by commas. Postings containing these terms will NOT be hidden,
             even if they also contain filter terms. Example: If you filter 'Apple' but add 'Android' 
             as an exception, a post titled 'Apple and Android phone deals' won't be hidden.
@@ -59,22 +61,22 @@
         <div id="status" class="status"></div>
 
         <div class="button-group">
-          <button id="saveBtn" class="btn btn-primary">Save Filters</button>
+          <button id="saveBtn" class="btn btn-primary" data-i18n="saveFiltersBtn">Save Filters</button>
         </div>
 
         <div class="transfer-group">
-          <button id="exportBtn" class="btn btn-secondary" type="button">Export Filters</button>
-          <button id="importBtn" class="btn btn-secondary" type="button">Import Filters</button>
+          <button id="exportBtn" class="btn btn-secondary" type="button" data-i18n="exportFiltersBtn">Export Filters</button>
+          <button id="importBtn" class="btn btn-secondary" type="button" data-i18n="importFiltersBtn">Import Filters</button>
         </div>
-        <p class="hint">
+        <p class="hint" data-i18n="importHintPopup">
           Import opens the Options page. There, click Import again.
         </p>
 
         <div class="preferences-section">
-          <h3>Preferences</h3>
+          <h3 data-i18n="preferencesHeading">Preferences</h3>
           
         <div class="form-group">
-          <label for="keywordShortcutPopup">Keyboard Shortcut</label>
+          <label for="keywordShortcutPopup" data-i18n="shortcutLabelPopup">Keyboard Shortcut</label>
           <div class="shortcut-row" style="display: flex; gap: 8px; margin-bottom: 8px;">
             <input
               id="keywordShortcutPopup"
@@ -84,35 +86,35 @@
               style="flex: 1; padding: 8px;"
               readonly
             />
-            <button id="openShortcutSettingsPopupBtn" class="btn btn-secondary" type="button" style="white-space: nowrap;">
-              Change in Firefox
+            <button id="openShortcutSettingsPopupBtn" class="btn btn-secondary" type="button" style="white-space: nowrap;" data-i18n="changeShortcutBtn">
+              Change in browser
             </button>
           </div>
-          <p class="hint" style="margin-bottom: 12px;">
-            Current shortcut to open keyword dialog. Click "Change in Firefox" to modify.
+          <p class="hint" style="margin-bottom: 12px;" data-i18n="shortcutHintPopup">
+            Open your browser's extension shortcuts page to change shortcuts.
           </p>
         </div>
           
           <label class="toggle-card" for="autoSortComments">
             <span class="toggle-copy">
-              <span class="toggle-title">Auto-sort comments</span>
-              <span class="toggle-description">Set comment sorting to "am hilfreichsten" on deal pages.</span>
+              <span class="toggle-title" data-i18n="autoSortTitlePopup">Auto-sort comments</span>
+              <span class="toggle-description" data-i18n="autoSortDescPopup">Set comment sorting to "am hilfreichsten" on deal pages.</span>
             </span>
             <input id="autoSortComments" type="checkbox" />
           </label>
 
           <label class="toggle-card" for="greyOutSeenDeals">
             <span class="toggle-copy">
-              <span class="toggle-title">Grey out seen deals</span>
-              <span class="toggle-description">Fade repeated deals after they leave the viewport or after you leave the deal page.</span>
+              <span class="toggle-title" data-i18n="greyOutTitle">Grey out seen deals</span>
+              <span class="toggle-description" data-i18n="greyOutDescPopup">Fade repeated deals after they leave the viewport or after you leave the deal page.</span>
             </span>
             <input id="greyOutSeenDeals" type="checkbox" />
           </label>
 
           <div class="range-card">
             <div class="range-copy">
-              <label class="range-title" for="greyOutOpacity">Grey-out opacity</label>
-              <span class="range-description">Set how faded seen deals should look.</span>
+              <label class="range-title" for="greyOutOpacity" data-i18n="greyOutOpacityTitle">Grey-out opacity</label>
+              <span class="range-description" data-i18n="greyOutOpacityDescPopup">Set how faded seen deals should look.</span>
             </div>
             <div class="range-control">
               <input id="greyOutOpacity" type="range" min="0" max="100" step="1" />
@@ -123,12 +125,12 @@
         </div>
 
         <div class="info-section">
-          <h3>How to use:</h3>
+          <h3 data-i18n="howToUseHeading">How to use:</h3>
           <ol>
-            <li>Enter keywords you want to filter separated by commas</li>
-            <li>Click "Save Filters"</li>
-            <li>Visit mydealz.de - postings with those keywords will be hidden</li>
-            <li>The icon shows how many postings are hidden</li>
+            <li data-i18n="howToUseStep1">Enter keywords you want to filter separated by commas</li>
+            <li data-i18n="howToUseStep2">Click "Save Filters"</li>
+            <li data-i18n="howToUseStep3">Visit mydealz.de - postings with those keywords will be hidden</li>
+            <li data-i18n="howToUseStep4">The icon shows how many postings are hidden</li>
           </ol>
         </div>
 
@@ -137,7 +139,7 @@
       <!-- Hidden Posts Tab Content -->
       <div id="hiddenPostsTab" class="tab-content active">
         <div id="hiddenDealsList" class="deals-list">
-          <p id="noHiddenDeals">No deals have been hidden on this page.</p>
+          <p id="noHiddenDeals" data-i18n="noHiddenDeals">No deals have been hidden on this page.</p>
           <!-- Hidden deals will be populated here -->
         </div>
       </div>
@@ -146,13 +148,13 @@
       <div id="statisticsTab" class="tab-content">
         <div class="statistics-toolbar">
           <div class="view-toggle" role="group" aria-label="Statistics view mode">
-            <button id="groupedViewBtn" class="btn btn-secondary view-mode-btn" type="button">Grouped</button>
-            <button id="ungroupedViewBtn" class="btn btn-secondary view-mode-btn" type="button">Ungrouped</button>
+            <button id="groupedViewBtn" class="btn btn-secondary view-mode-btn" type="button" data-i18n="statsGroupedBtn">Grouped</button>
+            <button id="ungroupedViewBtn" class="btn btn-secondary view-mode-btn" type="button" data-i18n="statsUngroupedBtn">Ungrouped</button>
           </div>
-          <button id="createStatsGroupBtn" class="btn btn-primary" type="button" disabled>Create Group</button>
+          <button id="createStatsGroupBtn" class="btn btn-primary" type="button" disabled data-i18n="statsCreateGroupBtn">Create Group</button>
         </div>
         <div id="statisticsList" class="statistics-list"></div>
-        <p id="noStatisticsData" class="no-statistics-data">
+        <p id="noStatisticsData" class="no-statistics-data" data-i18n="statsNoData">
           No statistics yet. Browse mydealz.de to build filter insights.
         </p>
       </div>
@@ -160,20 +162,20 @@
       <!-- Manage Groups Tab Content -->
       <div id="manageGroupsTab" class="tab-content">
         <div id="manageGroupsList" class="manage-groups-list"></div>
-        <p id="noManageGroupsData" class="no-statistics-data">
-          No statistic groups yet. Create a group from the Statistics tab.
+        <p id="noManageGroupsData" class="no-statistics-data" data-i18n="noGroupsData">
+          No categories or groups yet. Create one in Statistics or Options.
         </p>
       </div>
 
       <!-- Info Tab Content -->
       <div id="infoTab" class="tab-content">
         <div class="donate-section">
-          <p class="donate-text">Enjoying this extension? Instead of sending me your Bitcoins, just buy me a coffee or send a donation via PayPal.</p>
+          <p class="donate-text" data-i18n="donateText">Enjoying this extension? Instead of sending me your Bitcoins, just buy me a coffee or send a donation via PayPal.</p>
           <div class="donate-buttons">
-            <a href="https://github.com/codingismynewgaming/mydealz-filter-firefox-extension/issues" target="_blank" rel="noopener noreferrer" class="btn btn-donate btn-issues">Submit issue / request feature</a>
-            <a href="https://buymeacoffee.com/codingiymynewgaming" target="_blank" rel="noopener noreferrer" class="btn btn-donate btn-coffee">Buy me a coffee</a>
-            <a href="https://www.paypal.com/donate/?hosted_button_id=ZXHJFTUW9NQK8" target="_blank" rel="noopener noreferrer" class="btn btn-donate btn-paypal">Donate via PayPal</a>
-            <a href="https://github.com/codingismynewgaming" target="_blank" rel="noopener noreferrer" class="btn btn-donate btn-github">GitHub</a>
+            <a href="https://github.com/codingismynewgaming/mydealz-filter-firefox-extension/issues" target="_blank" rel="noopener noreferrer" class="btn btn-donate btn-issues" data-i18n="donateIssuesBtn">Submit issue / request feature</a>
+            <a href="https://buymeacoffee.com/codingiymynewgaming" target="_blank" rel="noopener noreferrer" class="btn btn-donate btn-coffee" data-i18n="donateCoffeeBtn">Buy me a coffee</a>
+            <a href="https://www.paypal.com/donate/?hosted_button_id=ZXHJFTUW9NQK8" target="_blank" rel="noopener noreferrer" class="btn btn-donate btn-paypal" data-i18n="donatePaypalBtn">Donate via PayPal</a>
+            <a href="https://github.com/codingismynewgaming/mydealz-filter-firefox-extension/issues" target="_blank" rel="noopener noreferrer" class="btn btn-donate btn-github" data-i18n="donateGithubBtn">GitHub</a>
           </div>
         </div>
 
@@ -209,6 +211,7 @@
       </div>
     </div>
 
+    <script src="shared.js"></script>
     <script src="popup.js"></script>
   </body>
 </html>

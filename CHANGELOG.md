@@ -2,6 +2,23 @@
 
 All notable changes to this project are documented in this file.
 
+## 1.1.0 - 2026-11-15
+
+### Added
+- **Full localization (`_locales`)**: Added English (`en`) and German (`de`) extension locales for manifest metadata, popup, options, keyword dialog, and content-script status messages.
+- **Microsoft Edge (MV3) support**: Added `edge/manifest.json`, `edge/src/background-sw.js`, `16`/`32`/`128` icon variants, browser-agnostic shortcut settings handling (`edge://extensions/shortcuts` / `chrome://extensions/shortcuts`), and `scripts/build-edge.mjs`.
+- **DOM fixture & unit tests**: Added HTML fixture tests for deal cards, short titles, `/gutscheine/` entries, and comment sort dropdowns (`npm test`).
+
+### Changed
+- **Unified categories and statistics groups**: Consolidated category management and statistics groups so popup group toggles, renames, deletions, and chip edits operate on shared category state.
+- **Stable infinite-scroll loading & anchoring**: Added viewport scroll anchoring and page-separator markers when new feed batches load on mydealz.de.
+- **Reliable comment sorting**: Replaced broken empty-POST GraphQL comment sorting with direct DOM dropdown selection for „Am hilfreichsten“.
+- **Store & GitHub texts**: Reworked `README.md`, AMO metadata, and Edge store descriptions, and pointed info-section links directly to GitHub Issues.
+
+### Fixed
+- **Short & voucher deal titles**: Improved `findTitleInElement` and `findDealPostings` to detect short titles cleanly while ignoring badges (`0°`, `50%`, prices) and supporting `/gutscheine/` pages.
+- **Keyword dialog category sync**: Quick-added keywords via shortcut now initialize/update category and statistics-group state consistently.
+
 ## 1.0.12 - 2026-04-07
 
 ### Added

@@ -1,51 +1,60 @@
 # mydealz.de Filter
 
-Version: 1.0.9
+Version: 1.1.0
 
-mydealz.de Filter hides unwanted deals on `mydealz.de` based on your keywords.
+Auf mydealz.de landen jeden Tag unzählige Deals, die einen überhaupt nicht interessieren. Bestimmte Shops, immer wieder dieselben Produktkategorien oder Aktionen, die man schon dreimal gesehen hat. Genau dafür gibt es diese Erweiterung: einmal eigene Stichwörter festlegen, und der Feed bleibt sauber.
 
-## Features
+Alles läuft lokal direkt im Browser. Keine Server, kein Tracking, keine Weitergabe von Daten.
 
-- **Keyword filtering** - Hide deals by title keywords
-- **Exception keywords** - Whitelist specific terms
-- **Filter categories** - Organize keywords with drag-and-drop assignment
-- **Seen deals** - Grey out previously seen deals
-- **Comment sorting** - Auto-sort by most helpful on deal pages
-- **Live statistics** - Shows hidden deal count and filter stats
-- **Grouped statistics** - Group terms and track performance
-- **Badge counter** - Shows number of hidden deals in toolbar
-- **Dark/Light mode** - Automatic theme switching
-- **Keyboard shortcuts** - Quick access with Ctrl+Shift+K
+## Was die Erweiterung konkret macht
 
-## Install
+- **Deals nach Stichwörtern ausblenden**: Alles mit passenden Begriffen im Titel verschwindet direkt aus dem Feed (inklusive `/gutscheine/` und kompakter Titel).
+- **Ausnahmebegriffe**: Begriffe schützen, die trotz Filter sichtbar bleiben sollen (zum Beispiel `Apple` filtern, aber `Android` als Ausnahme behalten).
+- **Kategorien und Statistik-Gruppen**: Begriffe in Kategorien sortieren, per Drag-and-drop verschieben und direkt in der Statistik einzeln an- oder ausschalten.
+- **Gesehene Deals ausgrauen**: Bereits vorbeigescrollte Deals verblassen dezent (einstellbare Deckkraft). Wer sie wieder normal sehen will, setzt den Verlauf einfach zurück.
+- **Kommentare automatisch sortieren**: Auf Deal-Seiten auf Wunsch automatisch nach „Am hilfreichsten“ sortieren.
+- **Ruhigeres Nachladen im Feed**: Hält die Scroll-Position beim Nachladen weiterer Deals stabiler und blendet kleine Seiten-Trenner ein.
+- **Schnell-Dialog per Shortcut**: Mit `Strg+Umschalt+K` (`Cmd+Umschalt+K` auf macOS) blitzschnell einen neuen Filterbegriff hinzufügen.
+- **Backup per JSON**: Filter, Kategorien und Einstellungen sauber exportieren und wieder importieren.
+- **Deutsch & Englisch + Dark Mode**: Passt sich automatisch an Browsersprache und System-Theme an.
 
-### Firefox Add-ons Store (Recommended)
-Get it on the [Firefox Addons Store](https://addons.mozilla.org/de/firefox/addon/mydealz-de-filter/)
+## Installation
 
-### Manual Install (Unlisted Build)
-1. Download the latest XPI from [GitHub Releases](https://github.com/codingismynewgaming/mydealz-filter-firefox-extension/releases)
-2. Open `about:addons` in Firefox
-3. Drag & drop the XPI file into the page
-4. Confirm installation
+### Firefox (Empfohlen)
+Direkt über den [Firefox Add-ons Store](https://addons.mozilla.org/de/firefox/addon/mydealz-de-filter/) installieren.
 
-### Temporary Install (Development)
-1. Open `about:debugging#/runtime/this-firefox` in Firefox
-2. Click `Load Temporary Add-on...`
-3. Select `app-files/manifest.json`
+### Microsoft Edge
+1. Die aktuelle Datei `mydealz-de-filter-edge-v1.1.0.zip` von [GitHub Releases](https://github.com/codingismynewgaming/mydealz-filter-firefox-extension/releases) herunterladen und entpacken.
+2. In Edge `edge://extensions` öffnen und den **Entwicklermodus** aktivieren.
+3. Auf **Entpackte Erweiterung laden** klicken und den entpackten Ordner auswählen.
 
-**Note:** Temporary installs are removed when Firefox restarts.
+### Manuelle XPI-Installation (Firefox)
+1. Die aktuelle `.xpi`-Datei von [GitHub Releases](https://github.com/codingismynewgaming/mydealz-filter-firefox-extension/releases) herunterladen.
+2. In Firefox `about:addons` öffnen und die Datei per Drag-and-drop hineinziehen.
 
-## Privacy
+### Selbst bauen (Entwicklung)
 
-- No data collection
-- No data transfer to external servers
-- All settings stored locally in your browser
+```bash
+npm test
+npm run lint:firefox
+npm run build:edge
+```
 
-## Support
+Die Edge-Version liegt danach als Paket und entpackter Ordner unter `builds/`.
 
-- GitHub: https://github.com/codingismynewgaming
-- Buy me a coffee: https://buymeacoffee.com/codingiymynewgaming
-- PayPal: https://www.paypal.com/donate/?hosted_button_id=ZXHJFTUW9NQK8
+## Datenschutz
+
+- Keine Datensammlung
+- Keine Verbindung zu externen Entwickler-Servern
+- Alle Filter und Zähler bleiben lokal in deinem Browser bzw. optional im Browser-Sync
+
+## Fehler melden & Support
+
+Hast du einen Bug gefunden oder eine Idee für das nächste Update?
+
+- **Issues & Feature-Wünsche**: https://github.com/codingismynewgaming/mydealz-filter-firefox-extension/issues
+- **Buy me a coffee**: https://buymeacoffee.com/codingiymynewgaming
+- **PayPal**: https://www.paypal.com/donate/?hosted_button_id=ZXHJFTUW9NQK8
 
 ## Hinweis / Disclaimer
 
@@ -57,6 +66,6 @@ Die Erweiterung arbeitet ausschließlich clientseitig und passt lediglich die Da
 - Es werden keine Affiliate-Links verändert oder ersetzt.
 - Es findet keine Datenübertragung an den Entwickler oder Dritte statt.
 
-Alle Marken- und Produktnamen (einschließlich „mydealz.de") sind Eigentum der jeweiligen Rechteinhaber und werden ausschließlich zur eindeutigen Beschreibung der Kompatibilität verwendet.
+Alle Marken- und Produktnamen (einschließlich „mydealz.de“) sind Eigentum der jeweiligen Rechteinhaber und werden ausschließlich zur eindeutigen Beschreibung der Kompatibilität verwendet.
 Die Nutzung dieser Erweiterung erfolgt auf eigene Verantwortung.
 Es liegt in der Verantwortung des Nutzers, die Nutzungsbedingungen von mydealz.de zu beachten.

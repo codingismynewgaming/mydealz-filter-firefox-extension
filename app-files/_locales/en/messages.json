@@ -1,0 +1,173 @@
+{
+  "extensionName": { "message": "mydealz.de Filter" },
+  "extensionDescription": { "message": "Filter mydealz.de postings by keywords in titles. Hide unwanted deals and show the number of hidden postings." },
+  "commandOpenKeywordDialog": { "message": "Open keyword adding dialog" },
+  "popupSubtitle": { "message": "Hide postings by keywords" },
+  "popupSubtitleWithTotal": {
+    "message": "Hide postings by keywords • Total hidden: $COUNT$",
+    "placeholders": { "count": { "content": "$1" } }
+  },
+  "optionsTitle": { "message": "mydealz.de Filter Settings" },
+  "optionsSubtitle": { "message": "Set filter and exception keywords" },
+  "themeDark": { "message": "Dark" },
+  "themeLight": { "message": "Light" },
+  "themeToggleTitle": { "message": "Toggle theme" },
+  "themeSwitchToLight": { "message": "Switch to light mode" },
+  "themeSwitchToDark": { "message": "Switch to dark mode" },
+  "tabHiddenPosts": { "message": "Hidden Posts" },
+  "tabStatistics": { "message": "Statistics" },
+  "tabManageGroups": { "message": "Manage Groups" },
+  "tabSettings": { "message": "Settings" },
+  "tabInfo": { "message": "Info" },
+  "filterTermsLabel": { "message": "Filter Terms" },
+  "filterTermsPlaceholder": { "message": "Enter keywords separated by commas\nExample: iPhone, Apple, Samsung" },
+  "filterTermsHintPopup": { "message": "Click in this field to unlock editing. Enter keywords separated by commas. Postings with these terms in the title will be hidden (unless they also contain an exception term)." },
+  "filterTermsHintOptions": { "message": "Click in this field to unlock editing. Deals containing these terms in the title will be hidden unless they also match an exception term." },
+  "exceptionTermsLabel": { "message": "Exception Terms" },
+  "exceptionTermsPlaceholder": { "message": "Enter exception keywords separated by commas\nExample: Android, Windows" },
+  "exceptionTermsHintPopup": { "message": "Click in this field to unlock editing. Enter keywords separated by commas. Postings containing these terms will NOT be hidden, even if they also contain filter terms. Example: If you filter 'Apple' but add 'Android' as an exception, a post titled 'Apple and Android phone deals' won't be hidden." },
+  "exceptionTermsHintOptions": { "message": "Click in this field to unlock editing. Deals containing these terms remain visible even if they contain a filter term." },
+  "saveFiltersBtn": { "message": "Save Filters" },
+  "exportFiltersBtn": { "message": "Export Filters" },
+  "importFiltersBtn": { "message": "Import Filters" },
+  "importHintPopup": { "message": "Import opens the Options page. There, click Import again." },
+  "preferencesHeading": { "message": "Preferences" },
+  "preferencesCopy": { "message": "Optional quality-of-life features for browsing mydealz.de." },
+  "shortcutLabelPopup": { "message": "Keyboard Shortcut" },
+  "shortcutLabelOptions": { "message": "Keyboard Shortcut for Adding Keywords" },
+  "changeShortcutBtn": { "message": "Change in browser" },
+  "shortcutHintPopup": { "message": "Open your browser's extension shortcuts page to change shortcuts." },
+  "shortcutHintOptions": { "message": "Open your browser's extension shortcuts page to change shortcuts." },
+  "shortcutManualHint": { "message": "Open your browser's extension shortcuts page to change shortcuts." },
+  "autoSortTitlePopup": { "message": "Auto-sort comments" },
+  "autoSortDescPopup": { "message": "Set comment sorting to \"am hilfreichsten\" on deal pages." },
+  "autoSortTitleOptions": { "message": "Auto-sort comments to \"am hilfreichsten\"" },
+  "autoSortDescOptions": { "message": "Only on deal detail pages. Disabled by default." },
+  "greyOutTitle": { "message": "Grey out seen deals" },
+  "greyOutDescPopup": { "message": "Fade repeated deals after they leave the viewport or after you leave the deal page." },
+  "greyOutDescOptions": { "message": "Keeps deals clickable, but fades repeats only after you scroll past them or leave the deal page." },
+  "greyOutOpacityTitle": { "message": "Grey-out opacity" },
+  "greyOutOpacityDescPopup": { "message": "Set how faded seen deals should look." },
+  "greyOutOpacityDescOptions": { "message": "Set how faded seen deals should look (0% = invisible, 100% = normal)." },
+  "seenCacheLabel": { "message": "Seen Deals Cache" },
+  "seenCacheHint": { "message": "Clears the history of deals you've already scrolled past, so they won't be greyed out anymore." },
+  "resetSeenDealsBtn": { "message": "Reset Seen Deals Cache" },
+  "resetSeenDealsConfirm": { "message": "Are you sure you want to clear your 'seen deals' history? All deals will look 'new' again." },
+  "resetSeenDealsDone": { "message": "Seen deals history cleared!" },
+  "categoriesHeading": { "message": "Filter Categories" },
+  "categoriesCopy": { "message": "Organize filter terms into categories, toggle them on or off, and inspect their counts in Statistics." },
+  "newCategoryPlaceholder": { "message": "New category name" },
+  "createCategoryBtn": { "message": "Create Category" },
+  "enableAllBtn": { "message": "Enable All" },
+  "disableAllBtn": { "message": "Disable All" },
+  "categorySummary": {
+    "message": "$ACTIVE$ of $TOTAL$ categories active",
+    "placeholders": {
+      "active": { "content": "$1" },
+      "total": { "content": "$2" }
+    }
+  },
+  "hiddenDealsHeading": { "message": "Hidden Deals" },
+  "refreshBtn": { "message": "Refresh" },
+  "howToUseHeading": { "message": "How to use:" },
+  "howToUseStep1": { "message": "Enter keywords you want to filter separated by commas" },
+  "howToUseStep2": { "message": "Click \"Save Filters\"" },
+  "howToUseStep3": { "message": "Visit mydealz.de — postings with those keywords will be hidden" },
+  "howToUseStep4": { "message": "The icon shows how many postings are hidden" },
+  "noHiddenDeals": { "message": "No deals have been hidden on this page." },
+  "visitMydealzHiddenDeals": { "message": "Visit mydealz.de to see hidden deals." },
+  "openTabHiddenDeals": { "message": "Open a mydealz.de tab to view hidden deals." },
+  "hiddenDealsUnavailable": { "message": "Hidden deals preview is not available on this platform." },
+  "hiddenDealsLoadError": { "message": "Could not load hidden deals." },
+  "hiddenByTerm": {
+    "message": "Hidden by: \"$TERM$\"",
+    "placeholders": { "term": { "content": "$1" } }
+  },
+  "statsGroupedBtn": { "message": "Grouped" },
+  "statsUngroupedBtn": { "message": "Ungrouped" },
+  "statsCreateGroupBtn": { "message": "Create Group" },
+  "statsNoData": { "message": "No statistics yet. Browse mydealz.de to build filter insights." },
+  "statsAddTermsFirst": { "message": "Add filter terms in Settings to view statistics." },
+  "noGroupsData": { "message": "No categories or groups yet. Create one in Statistics or Options." },
+  "statsHiddenCount": {
+    "message": "$COUNT$ hidden",
+    "placeholders": { "count": { "content": "$1" } }
+  },
+  "statsTermCount": {
+    "message": "$COUNT$ terms",
+    "placeholders": { "count": { "content": "$1" } }
+  },
+  "showLabel": { "message": "Show" },
+  "hideLabel": { "message": "Hide" },
+  "renameLabel": { "message": "Rename" },
+  "deleteLabel": { "message": "Delete" },
+  "saveLabel": { "message": "Save" },
+  "cancelLabel": { "message": "Cancel" },
+  "createLabel": { "message": "Create" },
+  "addTermLabel": { "message": "Add Term" },
+  "groupNamePlaceholder": { "message": "Category / group name..." },
+  "addUngroupedTermPlaceholder": { "message": "Add ungrouped term..." },
+  "noUngroupedTermsLeft": { "message": "No ungrouped terms left" },
+  "donateText": { "message": "Enjoying this extension? Instead of sending me your Bitcoins, just buy me a coffee or send a donation via PayPal." },
+  "donateIssuesBtn": { "message": "Submit issue / request feature" },
+  "donateCoffeeBtn": { "message": "Buy me a coffee" },
+  "donatePaypalBtn": { "message": "Donate via PayPal" },
+  "donateGithubBtn": { "message": "GitHub" },
+  "keywordDialogTitle": { "message": "Add filter keyword - mydealz.de Filter" },
+  "keywordDialogHeading": { "message": "Add filter keyword" },
+  "keywordDialogPlaceholder": { "message": "Enter keyword to filter..." },
+  "keywordDialogAddBtn": { "message": "Add filter term" },
+  "keywordDialogCloseBtn": { "message": "Close" },
+  "keywordDialogEnterTerm": { "message": "Please enter a keyword." },
+  "keywordDialogDuplicate": {
+    "message": "\"$TERM$\" is already in your filter list.",
+    "placeholders": { "term": { "content": "$1" } }
+  },
+  "keywordDialogAdded": {
+    "message": "Added \"$TERM$\" to filters.",
+    "placeholders": { "term": { "content": "$1" } }
+  },
+  "keywordDialogSavedLocal": {
+    "message": "Added \"$TERM$\" locally (sync error).",
+    "placeholders": { "term": { "content": "$1" } }
+  },
+  "keywordDialogSaveError": { "message": "Error saving keyword." },
+  "versionLabel": {
+    "message": "Version $VERSION$",
+    "placeholders": { "version": { "content": "$1" } }
+  },
+  "dealSeenOn": {
+    "message": "Seen on $DATE$",
+    "placeholders": { "date": { "content": "$1" } }
+  },
+  "pageNumberLabel": {
+    "message": "Page $PAGE$",
+    "placeholders": { "page": { "content": "$1" } }
+  },
+  "moreDealsLabel": { "message": "More deals" },
+  "pageLoaded": {
+    "message": "$LABEL$ loaded",
+    "placeholders": { "label": { "content": "$1" } }
+  },
+  "batchSummaryWithHidden": {
+    "message": "$VISIBLE$ visible · $HIDDEN$ hidden",
+    "placeholders": {
+      "visible": { "content": "$1" },
+      "hidden": { "content": "$2" }
+    }
+  },
+  "batchSummaryVisibleOnly": {
+    "message": "$VISIBLE$ visible",
+    "placeholders": { "visible": { "content": "$1" } }
+  },
+  "allDealsHiddenNotice": { "message": "No visible deals left on this page. Adjust your filters or scroll down." },
+  "categoryEnabledStatus": {
+    "message": "$NAME$ enabled.",
+    "placeholders": { "name": { "content": "$1" } }
+  },
+  "categoryDisabledStatus": {
+    "message": "$NAME$ disabled.",
+    "placeholders": { "name": { "content": "$1" } }
+  },
+  "dropTermsHint": { "message": "Drop filter terms here." }
+}

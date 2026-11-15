@@ -15,3 +15,6 @@ manifest.chrome.json
 package.json
 package-lock.json
 screenshot-ui.png
+META-INF/**
+.amo-upload-uuid
+

@@ -9,9 +9,9 @@
 *.zip
 
 # Root level app files (should be in app-files/)
-manifest.json
-src/
-icons/
+/manifest.json
+/src/
+/icons/
 
 # Dependencies
 node_modules/
@@ -39,3 +39,6 @@ QWEN.md
 $null
 content-script.js
 package.json
+
+# Documentation
+docs/

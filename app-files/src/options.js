@@ -22,54 +22,74 @@ const hiddenDealsList = document.getElementById("hiddenDealsList");
 const noHiddenDeals = document.getElementById("noHiddenDeals");
 const refreshHiddenBtn = document.getElementById("refreshHiddenBtn");
 const resetSeenDealsBtn = document.getElementById("resetSeenDealsBtn");
-const MYDEALZ_BASE_HOST = "mydealz.de";
-const FILTER_STORAGE_KEYS = [
-    "keywordShortcut",
-    "filterTerms",
-    "exceptionTerms",
-    "autoSortComments",
-    "greyOutOpacityPercent",
-    "filterTermCategories",
-    "categoryStates",
-];
-const LOCAL_ONLY_SETTINGS_KEYS = ["greyOutSeenDeals"];
-const BACKUP_FORMAT = "mydealz-filter-backup";
-const BACKUP_SCHEMA_VERSION = 2;
-const DEFAULT_CATEGORY_NAME = "Uncategorized";
-const FILTER_CATEGORY_STORAGE_KEY = "filterTermCategories";
-const CATEGORY_STATES_STORAGE_KEY = "categoryStates";
-const GREY_OUT_OPACITY_KEY = "greyOutOpacityPercent";
-const DEFAULT_GREY_OUT_OPACITY_PERCENT = 30;
+
+const {
+  SYNC_SETTINGS_KEYS,
+  LOCAL_ONLY_SETTINGS_KEYS,
+  FILTER_CATEGORY_STORAGE_KEY,
+  CATEGORY_STATES_STORAGE_KEY,
+  DEFAULT_CATEGORY_NAME,
+  STATS_GROUPS_STORAGE_KEY,
+  GREY_OUT_SEEN_DEALS_KEY,
+  GREY_OUT_OPACITY_KEY,
+  DEFAULT_SHORTCUT,
+  SYNC_QUOTA_PER_ITEM,
+  SETTINGS_UPDATED_AT_KEY,
+  getMessage,
+  applyI18n,
+  normalizeCategoryName,
+  cloneCategoryData,
+  cloneCategoryStates,
+  normalizeCategoryConfiguration,
+  migrateLegacyStatisticsGroupsToCategories,
+  categoriesToStatisticsGroups,
+  isPlainObject,
+  isMydealzDeUrl,
+  getStorageArea,
+  storageGet,
+  storageSet,
+  storageRemove,
+  replaceStorageSafely,
+  parseTerms,
+  normalizeTerm,
+  dedupeTerms,
+  mergeUniqueTerms,
+  normalizeOpacityPercent,
+  triggerJsonDownload,
+  autoGrowTextarea,
+  setupClickToEditTextarea,
+  renderHiddenDealsList,
+  notifyMydealzTabs,
+  pickBestMydealzDeTab,
+  isFullBackupPayload,
+  filterSyncBackupData,
+  validateImportPayload,
+  buildExportPayload,
+  hasSyncQuotaRisk,
+  shouldPreferLocalOverSync,
+} = MydealzFilterShared;
+
+const FILTER_STORAGE_KEYS = [...SYNC_SETTINGS_KEYS];
 let currentCategoryData = { [DEFAULT_CATEGORY_NAME]: [] };
 let currentCategoryStates = { [DEFAULT_CATEGORY_NAME]: true };
+let currentStatsGroupsSnapshot = {};
 let currentDraggedTerm = null;
+let statusHideTimer = null;
 
 function displayExtensionVersion() {
   const manifest = chrome.runtime.getManifest();
-  optionsVersionLabel.textContent = `Version ${manifest.version}`;
-}
-
-function isMydealzDeUrl(url) {
-  if (!url) return false;
-  try {
-    const hostname = new URL(url).hostname.toLowerCase();
-    return hostname === MYDEALZ_BASE_HOST || hostname.endsWith(`.${MYDEALZ_BASE_HOST}`);
-  } catch {
-    return false;
-  }
-}
-
-function autoGrowTextarea(textarea) {
-  if (!textarea) return;
-  textarea.style.height = "auto";
-  textarea.style.height = `${textarea.scrollHeight}px`;
-  textarea.style.overflowY = "hidden";
+  optionsVersionLabel.textContent = getMessage(
+    "versionLabel",
+    [manifest.version],
+    `Version ${manifest.version}`
+  );
 }
 
 function setupKeyboardShortcutField() {
   const openShortcutSettingsBtn = document.getElementById("openShortcutSettingsBtn");
-
   if (!keywordShortcutInput) return;
+
+  keywordShortcutInput.readOnly = true;
 
   loadStoredShortcutPreference().then((storedShortcut) => {
     keywordShortcutInput.value = storedShortcut;
@@ -77,48 +97,25 @@ function setupKeyboardShortcutField() {
 
   if (chrome.commands && chrome.commands.getAll) {
     chrome.commands.getAll((commands) => {
-      const command = commands.find(cmd => cmd.name === "open-keyword-dialog");
+      const command = commands.find((cmd) => cmd.name === "open-keyword-dialog");
       if (command && command.shortcut) {
         keywordShortcutInput.value = command.shortcut;
-        localStorage.setItem("keywordShortcut", command.shortcut);
       }
     });
   }
 
-  // Handle input changes - try to update via API
-  keywordShortcutInput.addEventListener("change", async () => {
-    const shortcut = keywordShortcutInput.value.trim() || "Ctrl+Shift+K";
-
-    // Send message to background script to update the shortcut
-    chrome.runtime.sendMessage({
-      type: "updateKeyboardShortcut",
-      shortcut: shortcut
-    }, (response) => {
-      if (chrome.runtime.lastError) {
-        console.error("Error updating shortcut:", chrome.runtime.lastError);
-        showStatus("Shortcut saved locally. Use the button below to set it in Firefox.", "success");
-      } else if (response && response.status === "success") {
-        localStorage.setItem("keywordShortcut", shortcut);
-        showStatus(`Keyboard shortcut updated to ${shortcut}`, "success");
-      } else {
-        localStorage.setItem("keywordShortcut", shortcut);
-        showStatus("Shortcut preference saved. Use the button below to change in Firefox.", "success");
-      }
-    });
-  });
-
-  // Handle "Open Firefox Settings" button
   if (openShortcutSettingsBtn) {
     openShortcutSettingsBtn.addEventListener("click", () => {
       chrome.runtime.sendMessage({ type: "openShortcutSettings" }, (response) => {
-        if (chrome.runtime.lastError) {
-          console.error("Error opening shortcut settings:", chrome.runtime.lastError);
-          // Fallback: try to open about:addons
-          try {
-            chrome.tabs.create({ url: "about:addons" });
-          } catch (e) {
-            showStatus("Please manually open about:addons to change shortcuts", "error");
-          }
+        if (chrome.runtime.lastError || response?.status !== "opened") {
+          showStatus(
+            getMessage(
+              "shortcutManualHint",
+              [],
+              "Open your browser extension shortcuts page to modify shortcuts."
+            ),
+            "error"
+          );
         }
       });
     });
@@ -130,34 +127,9 @@ function autoGrowKeywordTextareas() {
   autoGrowTextarea(exceptionTermsTextarea);
 }
 
-function setupClickToEditTextarea(textarea) {
-  if (!textarea) return;
-
-  const lockTextarea = () => {
-    textarea.readOnly = true;
-    textarea.classList.remove("editable");
-  };
-
-  lockTextarea();
-
-  textarea.addEventListener("pointerdown", () => {
-    textarea.readOnly = false;
-    textarea.classList.add("editable");
-  });
-
-  textarea.addEventListener("blur", lockTextarea);
-}
-
 function setupClickToEditKeywordFields() {
-  setupClickToEditTextarea(keywordShortcutInput);
   setupClickToEditTextarea(filterTermsTextarea);
   setupClickToEditTextarea(exceptionTermsTextarea);
-}
-
-function normalizeOpacityPercent(value) {
-  const parsed = Number.parseFloat(value);
-  if (!Number.isFinite(parsed)) return DEFAULT_GREY_OUT_OPACITY_PERCENT;
-  return Math.min(100, Math.max(0, Math.round(parsed)));
 }
 
 function updateGreyOutOpacityUI(value) {
@@ -172,46 +144,8 @@ function updateGreyOutOpacityUI(value) {
 }
 
 function getGreyOutOpacityPercent() {
-  if (!greyOutOpacityRange) return DEFAULT_GREY_OUT_OPACITY_PERCENT;
+  if (!greyOutOpacityRange) return normalizeOpacityPercent(undefined);
   return normalizeOpacityPercent(greyOutOpacityRange.value);
-}
-
-function getStorageArea(areaName) {
-  return chrome.storage && chrome.storage[areaName] ? chrome.storage[areaName] : null;
-}
-
-function storageGet(area, keys) {
-  return new Promise((resolve) => {
-    if (!area || typeof area.get !== "function") {
-      resolve({ result: {}, error: new Error("Storage area unavailable") });
-      return;
-    }
-
-    area.get(keys, (result) => {
-      if (chrome.runtime.lastError) {
-        resolve({ result: {}, error: new Error(chrome.runtime.lastError.message) });
-        return;
-      }
-      resolve({ result: result || {}, error: null });
-    });
-  });
-}
-
-function storageSet(area, data) {
-  return new Promise((resolve) => {
-    if (!area || typeof area.set !== "function") {
-      resolve({ error: new Error("Storage area unavailable") });
-      return;
-    }
-
-    area.set(data, () => {
-      if (chrome.runtime.lastError) {
-        resolve({ error: new Error(chrome.runtime.lastError.message) });
-        return;
-      }
-      resolve({ error: null });
-    });
-  });
 }
 
 function isSyncSettingsEmpty(settings) {
@@ -219,7 +153,8 @@ function isSyncSettingsEmpty(settings) {
     settings?.filterTerms ||
     settings?.exceptionTerms ||
     settings?.autoSortComments === true ||
-    Number.isFinite(Number(settings?.[GREY_OUT_OPACITY_KEY])) ||
+    (typeof settings?.[GREY_OUT_OPACITY_KEY] === "number" &&
+      Number.isFinite(settings[GREY_OUT_OPACITY_KEY])) ||
     (isPlainObject(settings?.[FILTER_CATEGORY_STORAGE_KEY]) &&
       Object.keys(settings[FILTER_CATEGORY_STORAGE_KEY]).length > 0) ||
     (isPlainObject(settings?.[CATEGORY_STATES_STORAGE_KEY]) &&
@@ -239,7 +174,10 @@ async function migrateLocalSettingsToSyncIfNeeded() {
   const { result: localSettings, error: localError } = await storageGet(localArea, FILTER_STORAGE_KEYS);
   if (localError || isSyncSettingsEmpty(localSettings)) return false;
 
-  const { error } = await storageSet(syncArea, localSettings);
+  const { error } = await storageSet(syncArea, {
+    ...localSettings,
+    [SETTINGS_UPDATED_AT_KEY]: Date.now(),
+  });
   if (error) {
     console.error("Sync storage error while migrating settings from local:", error);
     return false;
@@ -248,161 +186,29 @@ async function migrateLocalSettingsToSyncIfNeeded() {
   return true;
 }
 
-function storageClear(area) {
-  return new Promise((resolve) => {
-    if (!area || typeof area.clear !== "function") {
-      resolve({ error: new Error("Storage area unavailable") });
-      return;
-    }
-
-    area.clear(() => {
-      if (chrome.runtime.lastError) {
-        resolve({ error: new Error(chrome.runtime.lastError.message) });
-        return;
-      }
-      resolve({ error: null });
-    });
-  });
-}
-
-function parseTerms(rawTerms) {
-  return (rawTerms || "")
-    .split(",")
-    .map((term) => term.trim())
-    .filter((term) => term.length > 0);
-}
-
-function normalizeTerm(term) {
-  return (term || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim();
-}
-
-function normalizeCategoryName(name) {
-  return (name || "").trim().replace(/\s+/g, " ");
-}
-
 function isValidCategoryName(name) {
   const normalized = normalizeCategoryName(name);
   return /^[\p{L}\p{N}\s-]{1,50}$/u.test(normalized);
 }
 
-function cloneCategoryData(categoryData) {
-  return Object.fromEntries(
-    Object.entries(categoryData || {}).map(([categoryName, terms]) => [
-      categoryName,
-      Array.isArray(terms) ? [...terms] : [],
-    ])
-  );
-}
-
-function cloneCategoryStates(categoryStates) {
-  return { ...(categoryStates || {}) };
-}
-
-function normalizeCategoryConfiguration(rawCategories, rawStates, filterTerms) {
-  const dedupedTerms = dedupeTerms(filterTerms).unique;
-  const termLookup = new Map(
-    dedupedTerms.map((term) => [normalizeTerm(term), term])
-  );
-  const assignedTerms = new Set();
-  const normalizedCategories = {};
-
-  for (const [rawCategoryName, rawTerms] of Object.entries(rawCategories || {})) {
-    const candidateName = normalizeCategoryName(rawCategoryName);
-    if (!candidateName) continue;
-
-    const categoryName =
-      normalizeTerm(candidateName) === normalizeTerm(DEFAULT_CATEGORY_NAME)
-        ? DEFAULT_CATEGORY_NAME
-        : candidateName;
-    const safeTerms = Array.isArray(rawTerms) ? rawTerms : [];
-    const categoryTerms = [];
-
-    safeTerms.forEach((term) => {
-      const normalized = normalizeTerm(term);
-      const canonical = termLookup.get(normalized);
-      if (!canonical || assignedTerms.has(normalized)) return;
-      assignedTerms.add(normalized);
-      categoryTerms.push(canonical);
-    });
-
-    if (!normalizedCategories[categoryName]) {
-      normalizedCategories[categoryName] = categoryTerms;
-    } else {
-      normalizedCategories[categoryName].push(...categoryTerms);
-    }
-  }
-
-  const uncategorizedTerms = dedupedTerms.filter((term) => !assignedTerms.has(normalizeTerm(term)));
-  normalizedCategories[DEFAULT_CATEGORY_NAME] = normalizedCategories[DEFAULT_CATEGORY_NAME] || [];
-  uncategorizedTerms.forEach((term) => {
-    if (!normalizedCategories[DEFAULT_CATEGORY_NAME].some((entry) => normalizeTerm(entry) === normalizeTerm(term))) {
-      normalizedCategories[DEFAULT_CATEGORY_NAME].push(term);
-    }
-  });
-
-  const normalizedStates = {};
-  Object.keys(normalizedCategories).forEach((categoryName) => {
-    normalizedStates[categoryName] = rawStates?.[categoryName] !== false;
-  });
-
-  return {
-    categoryData: normalizedCategories,
-    categoryStates: normalizedStates,
-  };
-}
-
-async function loadCategoryConfigurationForTerms(filterTerms) {
-  const syncArea = getStorageArea("sync");
-  const localArea = getStorageArea("local");
-  let rawCategories = {};
-  let rawStates = {};
-
-  if (syncArea) {
-    const { result, error } = await storageGet(syncArea, [
-      FILTER_CATEGORY_STORAGE_KEY,
-      CATEGORY_STATES_STORAGE_KEY,
-    ]);
-    if (!error) {
-      rawCategories = isPlainObject(result[FILTER_CATEGORY_STORAGE_KEY])
-        ? result[FILTER_CATEGORY_STORAGE_KEY]
-        : {};
-      rawStates = isPlainObject(result[CATEGORY_STATES_STORAGE_KEY])
-        ? result[CATEGORY_STATES_STORAGE_KEY]
-        : {};
-    }
-  }
-
-  if (Object.keys(rawCategories).length === 0 && localArea) {
-    const { result } = await storageGet(localArea, [
-      FILTER_CATEGORY_STORAGE_KEY,
-      CATEGORY_STATES_STORAGE_KEY,
-    ]);
-    rawCategories = isPlainObject(result[FILTER_CATEGORY_STORAGE_KEY])
-      ? result[FILTER_CATEGORY_STORAGE_KEY]
-      : {};
-    rawStates = isPlainObject(result[CATEGORY_STATES_STORAGE_KEY])
-      ? result[CATEGORY_STATES_STORAGE_KEY]
-      : {};
-  }
-
-  return normalizeCategoryConfiguration(rawCategories, rawStates, filterTerms);
-}
-
 async function persistCategoryConfiguration(categoryData, categoryStates) {
   currentCategoryData = cloneCategoryData(categoryData);
   currentCategoryStates = cloneCategoryStates(categoryStates);
+  currentStatsGroupsSnapshot = categoriesToStatisticsGroups(
+    currentCategoryData,
+    currentStatsGroupsSnapshot
+  );
   const payload = {
     [FILTER_CATEGORY_STORAGE_KEY]: currentCategoryData,
     [CATEGORY_STATES_STORAGE_KEY]: currentCategoryStates,
+    [STATS_GROUPS_STORAGE_KEY]: currentStatsGroupsSnapshot,
+    [SETTINGS_UPDATED_AT_KEY]: Date.now(),
   };
 
   const syncArea = getStorageArea("sync");
   const localArea = getStorageArea("local");
   let syncError = false;
+  let localError = false;
 
   if (syncArea) {
     const { error } = await storageSet(syncArea, payload);
@@ -414,15 +220,31 @@ async function persistCategoryConfiguration(categoryData, categoryStates) {
     syncError = true;
   }
 
+  if (localArea) {
+    const { error } = await storageSet(localArea, payload);
+    localError = !!error;
+    if (error) {
+      console.error("Local storage error while saving categories:", error);
+    }
+  } else {
+    localError = true;
+  }
+
   renderCategoryGroups();
   await notifyContentScripts();
-  return { syncError };
+  return { syncError, localError };
 }
 
 function updateCategorySummary() {
   const categories = Object.keys(currentCategoryData);
-  const activeCount = categories.filter((categoryName) => currentCategoryStates[categoryName] !== false).length;
-  categorySummary.textContent = `${activeCount} of ${categories.length} categories active`;
+  const activeCount = categories.filter(
+    (categoryName) => currentCategoryStates[categoryName] !== false
+  ).length;
+  categorySummary.textContent = getMessage(
+    "categorySummary",
+    [String(activeCount), String(categories.length)],
+    `${activeCount} of ${categories.length} categories active`
+  );
 }
 
 function renderCategoryGroups() {
@@ -448,10 +270,19 @@ function renderCategoryGroups() {
     checkbox.checked = currentCategoryStates[categoryName] !== false;
     checkbox.addEventListener("change", async () => {
       currentCategoryStates[categoryName] = checkbox.checked;
-      await persistCategoryConfiguration(currentCategoryData, currentCategoryStates);
+      const { syncError, localError } = await persistCategoryConfiguration(
+        currentCategoryData,
+        currentCategoryStates
+      );
+      if (syncError && localError) {
+        showStatus("Error saving category state.", "error");
+        return;
+      }
       showStatus(
-        `${categoryName} ${checkbox.checked ? "enabled" : "disabled"}.`,
-        "success"
+        `${categoryName} ${checkbox.checked ? "enabled" : "disabled"}.${
+          syncError ? " Saved locally." : ""
+        }`,
+        syncError ? "error" : "success"
       );
     });
 
@@ -474,7 +305,7 @@ function renderCategoryGroups() {
       const deleteBtn = document.createElement("button");
       deleteBtn.className = "btn btn-secondary";
       deleteBtn.type = "button";
-      deleteBtn.textContent = "Delete";
+      deleteBtn.textContent = getMessage("deleteLabel", [], "Delete");
       deleteBtn.addEventListener("click", async () => {
         const movedTerms = currentCategoryData[categoryName] || [];
         currentCategoryData[DEFAULT_CATEGORY_NAME] = [
@@ -534,7 +365,7 @@ function renderCategoryGroups() {
     if (terms.length === 0) {
       const emptyText = document.createElement("p");
       emptyText.className = "category-empty";
-      emptyText.textContent = "Drop filter terms here.";
+      emptyText.textContent = getMessage("dropTermsHint", [], "Drop filter terms here.");
       termContainer.appendChild(emptyText);
     } else {
       terms.forEach((term) => {
@@ -563,53 +394,6 @@ function renderCategoryGroups() {
   });
 }
 
-function mergeUniqueTerms(existingTerms, importedTerms) {
-  const merged = [...existingTerms];
-  const seen = new Set(existingTerms.map((term) => normalizeTerm(term)));
-  let importedCount = 0;
-  let skippedCount = 0;
-
-  for (const term of importedTerms) {
-    const normalized = normalizeTerm(term);
-    if (!normalized) {
-      skippedCount++;
-      continue;
-    }
-
-    if (seen.has(normalized)) {
-      skippedCount++;
-      continue;
-    }
-
-    seen.add(normalized);
-    merged.push(term.trim());
-    importedCount++;
-  }
-
-  return { merged, importedCount, skippedCount };
-}
-
-function dedupeTerms(terms) {
-  const unique = [];
-  const seen = new Set();
-  const duplicates = [];
-
-  for (const term of terms) {
-    const normalized = normalizeTerm(term);
-    if (!normalized) continue;
-
-    if (seen.has(normalized)) {
-      duplicates.push(term);
-      continue;
-    }
-
-    seen.add(normalized);
-    unique.push(term.trim());
-  }
-
-  return { unique, duplicates };
-}
-
 function highlightDuplicateFields(filterDuplicates, exceptionDuplicates) {
   const hasFilterDuplicates = filterDuplicates.length > 0;
   const hasExceptionDuplicates = exceptionDuplicates.length > 0;
@@ -625,133 +409,38 @@ function highlightDuplicateFields(filterDuplicates, exceptionDuplicates) {
   }
 }
 
-function getExportFilename() {
-  const datePart = new Date().toISOString().slice(0, 10);
-  return `mydealz-de-filter-settings-${datePart}.json`;
-}
-
-function triggerJsonDownload(payload) {
-  const fileBlob = new Blob([JSON.stringify(payload, null, 2)], {
-    type: "application/json",
-  });
-  const blobUrl = URL.createObjectURL(fileBlob);
-  const link = document.createElement("a");
-  link.href = blobUrl;
-  link.download = getExportFilename();
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(blobUrl);
-}
-
-function isPlainObject(value) {
-  return !!value && typeof value === "object" && !Array.isArray(value);
-}
-
-function isFullBackupPayload(payload) {
-  return isPlainObject(payload) && isPlainObject(payload.storage);
-}
-
-function getBackupStoragePayload(payload) {
-  if (!isFullBackupPayload(payload)) return {};
-
-  const syncData = isPlainObject(payload.storage.sync) ? payload.storage.sync : {};
-  const localData = isPlainObject(payload.storage.local) ? payload.storage.local : {};
-  return { ...localData, ...syncData };
-}
-
-async function getStorageSnapshot() {
-  const syncArea = getStorageArea("sync");
-  const localArea = getStorageArea("local");
-  const { result: syncData, error: syncError } = await storageGet(syncArea, null);
-  const { result: localData, error: localError } = await storageGet(localArea, null);
-
-  return {
-    syncData: isPlainObject(syncData) ? syncData : {},
-    localData: isPlainObject(localData) ? localData : {},
-    syncError,
-    localError,
-  };
-}
-
-async function buildExportPayload() {
-  const manifest = chrome.runtime.getManifest();
-  const { syncData, localData, syncError, localError } = await getStorageSnapshot();
-  const mergedData = { ...localData, ...syncData };
-  const filterTerms = parseTerms(
-    typeof mergedData.filterTerms === "string" ? mergedData.filterTerms : ""
-  );
-  const exceptionTerms = parseTerms(
-    typeof mergedData.exceptionTerms === "string" ? mergedData.exceptionTerms : ""
-  );
-
-  return {
-    format: BACKUP_FORMAT,
-    schemaVersion: BACKUP_SCHEMA_VERSION,
-    version: manifest.version,
-    exportedAt: new Date().toISOString(),
-    filterTerms,
-    exceptionTerms,
-    storage: {
-      local: localData,
-      sync: syncData,
-    },
-    storageErrors: {
-      local: !!localError,
-      sync: !!syncError,
-    },
-  };
-}
-
-function validateImportPayload(payload) {
-  if (!payload || typeof payload !== "object") return "Invalid JSON structure.";
-
-  if (isFullBackupPayload(payload)) {
-    if (payload.storage.sync !== undefined && !isPlainObject(payload.storage.sync)) {
-      return "storage.sync must be an object.";
-    }
-    if (payload.storage.local !== undefined && !isPlainObject(payload.storage.local)) {
-      return "storage.local must be an object.";
-    }
-    return null;
-  }
-
-  // Support both array and string (legacy/alternative formats)
-  const filterTerms = payload.filterTerms;
-  const exceptionTerms = payload.exceptionTerms;
-
-  const hasFilterTerms = Array.isArray(filterTerms) || typeof filterTerms === "string";
-  const hasExceptionTerms = Array.isArray(exceptionTerms) || typeof exceptionTerms === "string";
-
-  if (!hasFilterTerms && !hasExceptionTerms) {
-    return "JSON must include filterTerms or exceptionTerms.";
-  }
-
-  if (Array.isArray(filterTerms) && !filterTerms.every((term) => typeof term === "string")) {
-    return "filterTerms must be an array of strings.";
-  }
-
-  if (Array.isArray(exceptionTerms) && !exceptionTerms.every((term) => typeof term === "string")) {
-    return "exceptionTerms must be an array of strings.";
-  }
-
-  return null;
-}
-
 async function restoreStorageBackup(payload) {
-  const mergedPayload = getBackupStoragePayload(payload);
+  const rawSync = isPlainObject(payload.storage?.sync) ? payload.storage.sync : {};
+  const rawLocal = isPlainObject(payload.storage?.local) ? payload.storage.local : {};
+
+  const localPayload =
+    Object.keys(rawLocal).length > 0 ? { ...rawLocal } : { ...rawSync };
+  const syncCandidate =
+    Object.keys(rawSync).length > 0
+      ? filterSyncBackupData(rawSync)
+      : filterSyncBackupData(rawLocal);
+
   const syncArea = getStorageArea("sync");
   const localArea = getStorageArea("local");
   let syncError = false;
   let localError = false;
 
+  if (localArea) {
+    const { error } = await replaceStorageSafely(localArea, localPayload);
+    if (error) {
+      console.error("Local storage restore error:", error);
+      localError = true;
+    }
+  } else {
+    localError = true;
+  }
+
   if (syncArea) {
-    const { error: clearError } = await storageClear(syncArea);
-    if (clearError) {
-      console.error("Sync storage clear error:", clearError);
+    if (hasSyncQuotaRisk(syncCandidate)) {
+      console.warn("Skipping sync restore because one or more items exceed Firefox Sync quota.");
       syncError = true;
     } else {
-      const { error } = await storageSet(syncArea, mergedPayload);
+      const { error } = await replaceStorageSafely(syncArea, syncCandidate);
       if (error) {
         console.error("Sync storage restore error:", error);
         syncError = true;
@@ -761,74 +450,98 @@ async function restoreStorageBackup(payload) {
     syncError = true;
   }
 
-  if (localArea) {
-    const { error: clearError } = await storageClear(localArea);
-    if (clearError) {
-      console.error("Local storage clear error:", clearError);
-      localError = true;
-    } else {
-      const { error } = await storageSet(localArea, mergedPayload);
-      if (error) {
-        console.error("Local storage restore error:", error);
-        localError = true;
-      }
-    }
-  } else {
-    localError = true;
-  }
+  const restoredKeyCount = new Set([
+    ...Object.keys(localPayload),
+    ...Object.keys(syncCandidate),
+  ]).size;
 
   return {
     syncError,
     localError,
-    restoredKeyCount: Object.keys(mergedPayload).length,
+    restoredKeyCount,
   };
 }
 
 async function loadFilterTerms() {
   const syncArea = getStorageArea("sync");
   const localArea = getStorageArea("local");
-  let loadedFrom = "none";
-  let filterTerms = "";
-  let exceptionTerms = "";
   await migrateLocalSettingsToSyncIfNeeded();
 
-// Always try sync first for the most up-to-date data.
-   if (syncArea) {
-     const { result, error } = await storageGet(syncArea, FILTER_STORAGE_KEYS);
-     if (!error && (result.filterTerms || result.exceptionTerms)) {
-       filterTerms = result.filterTerms || "";
-       exceptionTerms = result.exceptionTerms || "";
-       loadedFrom = "sync";
-     } else if (error) {
-       console.error("Error loading from sync storage:", error);
-     }
-     if (!error) {
-       autoSortCommentsCheckbox.checked = result.autoSortComments === true;
-       keywordShortcutInput.value = result.keywordShortcut || keywordShortcutInput.value;
-       updateGreyOutOpacityUI(result[GREY_OUT_OPACITY_KEY]);
-       }
-       }
+  const probeKeys = [...FILTER_STORAGE_KEYS, STATS_GROUPS_STORAGE_KEY, SETTINGS_UPDATED_AT_KEY];
+  const { result: syncResult, error: syncError } = syncArea
+    ? await storageGet(syncArea, probeKeys)
+    : { result: {}, error: new Error("Sync unavailable") };
+  const { result: localResult } = localArea
+    ? await storageGet(localArea, [...probeKeys, ...LOCAL_ONLY_SETTINGS_KEYS])
+    : { result: {} };
 
-       if (localArea) {
-       const { result } = await storageGet(localArea, [...FILTER_STORAGE_KEYS, ...LOCAL_ONLY_SETTINGS_KEYS]);
-       if (loadedFrom === "none" && (result.filterTerms || result.exceptionTerms)) {
-         filterTerms = result.filterTerms || "";
-         exceptionTerms = result.exceptionTerms || "";
-         loadedFrom = "local";
-         autoSortCommentsCheckbox.checked = result.autoSortComments === true;
-         keywordShortcutInput.value = result.keywordShortcut || keywordShortcutInput.value;
-         updateGreyOutOpacityUI(result[GREY_OUT_OPACITY_KEY]);
-       }
-       greyOutSeenDealsCheckbox.checked = result.greyOutSeenDeals === true;
-       }
+  const preferLocal = shouldPreferLocalOverSync(
+    syncResult,
+    syncError,
+    localResult,
+    FILTER_STORAGE_KEYS
+  );
+  const primary = preferLocal ? localResult : syncResult;
+  const fallback = preferLocal ? syncResult : localResult;
+
+  const filterTerms = primary.filterTerms ?? fallback.filterTerms ?? "";
+  const exceptionTerms = primary.exceptionTerms ?? fallback.exceptionTerms ?? "";
+  autoSortCommentsCheckbox.checked =
+    typeof primary.autoSortComments === "boolean"
+      ? primary.autoSortComments
+      : fallback.autoSortComments === true;
+
+  if (primary.keywordShortcut || fallback.keywordShortcut) {
+    keywordShortcutInput.value = primary.keywordShortcut || fallback.keywordShortcut;
+  }
+
+  const opacityValue =
+    typeof primary[GREY_OUT_OPACITY_KEY] === "number"
+      ? primary[GREY_OUT_OPACITY_KEY]
+      : fallback[GREY_OUT_OPACITY_KEY];
+  updateGreyOutOpacityUI(opacityValue);
+
+  greyOutSeenDealsCheckbox.checked =
+    typeof localResult[GREY_OUT_SEEN_DEALS_KEY] === "boolean"
+      ? localResult[GREY_OUT_SEEN_DEALS_KEY]
+      : syncResult[GREY_OUT_SEEN_DEALS_KEY] === true;
+
   filterTermsTextarea.value = filterTerms;
   exceptionTermsTextarea.value = exceptionTerms;
   autoGrowKeywordTextareas();
-  const categoryConfig = await loadCategoryConfigurationForTerms(parseTerms(filterTerms));
+
+  const rawCategories = isPlainObject(primary[FILTER_CATEGORY_STORAGE_KEY])
+    ? primary[FILTER_CATEGORY_STORAGE_KEY]
+    : isPlainObject(fallback[FILTER_CATEGORY_STORAGE_KEY])
+    ? fallback[FILTER_CATEGORY_STORAGE_KEY]
+    : {};
+  const rawStates = isPlainObject(primary[CATEGORY_STATES_STORAGE_KEY])
+    ? primary[CATEGORY_STATES_STORAGE_KEY]
+    : isPlainObject(fallback[CATEGORY_STATES_STORAGE_KEY])
+    ? fallback[CATEGORY_STATES_STORAGE_KEY]
+    : {};
+  const rawStatsGroups = isPlainObject(primary[STATS_GROUPS_STORAGE_KEY])
+    ? primary[STATS_GROUPS_STORAGE_KEY]
+    : isPlainObject(fallback[STATS_GROUPS_STORAGE_KEY])
+    ? fallback[STATS_GROUPS_STORAGE_KEY]
+    : {};
+
+  const categoryConfig = migrateLegacyStatisticsGroupsToCategories(
+    rawCategories,
+    rawStates,
+    rawStatsGroups,
+    parseTerms(filterTerms)
+  );
   currentCategoryData = categoryConfig.categoryData;
   currentCategoryStates = categoryConfig.categoryStates;
+  currentStatsGroupsSnapshot = categoriesToStatisticsGroups(currentCategoryData, rawStatsGroups);
   renderCategoryGroups();
-  return { storage: loadedFrom };
+
+  if (categoryConfig.migrated) {
+    await persistCategoryConfiguration(currentCategoryData, currentCategoryStates);
+  }
+
+  return { storage: preferLocal ? "local" : "sync" };
 }
 
 async function loadStoredShortcutPreference() {
@@ -849,7 +562,7 @@ async function loadStoredShortcutPreference() {
     }
   }
 
-  return localStorage.getItem("keywordShortcut") || "Ctrl+Shift+K";
+  return DEFAULT_SHORTCUT;
 }
 
 async function saveFilterTerms() {
@@ -864,14 +577,26 @@ async function saveFilterTerms() {
   );
   currentCategoryData = normalizedCategoryConfig.categoryData;
   currentCategoryStates = normalizedCategoryConfig.categoryStates;
-  const payload = {
+  currentStatsGroupsSnapshot = categoriesToStatisticsGroups(
+    currentCategoryData,
+    currentStatsGroupsSnapshot
+  );
+
+  const updatedAt = Date.now();
+  const syncPayload = {
     filterTerms,
     exceptionTerms,
     autoSortComments: autoSortCommentsCheckbox.checked,
-    keywordShortcut: keywordShortcutInput.value.trim() || "Ctrl+Shift+K",
+    keywordShortcut: keywordShortcutInput.value.trim() || DEFAULT_SHORTCUT,
     [GREY_OUT_OPACITY_KEY]: getGreyOutOpacityPercent(),
     [FILTER_CATEGORY_STORAGE_KEY]: currentCategoryData,
     [CATEGORY_STATES_STORAGE_KEY]: currentCategoryStates,
+    [STATS_GROUPS_STORAGE_KEY]: currentStatsGroupsSnapshot,
+    [SETTINGS_UPDATED_AT_KEY]: updatedAt,
+  };
+  const localPayload = {
+    ...syncPayload,
+    [GREY_OUT_SEEN_DEALS_KEY]: greyOutSeenDealsCheckbox.checked,
   };
 
   const syncArea = getStorageArea("sync");
@@ -885,17 +610,16 @@ async function saveFilterTerms() {
   let localError = false;
   let quotaExceeded = false;
 
-  // 8KB per-item quota check for Firefox Sync
-  const SYNC_QUOTA_PER_ITEM = 8192;
-  if (new Blob([filterTerms]).size > SYNC_QUOTA_PER_ITEM || 
-      new Blob([exceptionTerms]).size > SYNC_QUOTA_PER_ITEM) {
+  if (
+    new Blob([filterTerms]).size > SYNC_QUOTA_PER_ITEM ||
+    new Blob([exceptionTerms]).size > SYNC_QUOTA_PER_ITEM
+  ) {
     console.warn("Sync quota might be exceeded for these filters.");
     quotaExceeded = true;
   }
 
-  // Save to sync if available.
   if (syncArea) {
-    const { error } = await storageSet(syncArea, payload);
+    const { error } = await storageSet(syncArea, syncPayload);
     if (error) {
       console.error("Sync storage error:", error);
       syncError = true;
@@ -905,13 +629,13 @@ async function saveFilterTerms() {
   }
 
   if (localArea) {
-    const { error } = await storageSet(localArea, {
-      greyOutSeenDeals: greyOutSeenDealsCheckbox.checked,
-    });
+    const { error } = await storageSet(localArea, localPayload);
     if (error) {
       console.error("Local storage error:", error);
       localError = true;
     }
+  } else {
+    localError = true;
   }
 
   renderCategoryGroups();
@@ -919,9 +643,9 @@ async function saveFilterTerms() {
   return {
     filterTerms,
     exceptionTerms,
-    autoSortComments: payload.autoSortComments,
-    greyOutSeenDeals: greyOutSeenDealsCheckbox.checked,
-    greyOutOpacityPercent: payload[GREY_OUT_OPACITY_KEY],
+    autoSortComments: syncPayload.autoSortComments,
+    greyOutSeenDeals: localPayload[GREY_OUT_SEEN_DEALS_KEY],
+    greyOutOpacityPercent: syncPayload[GREY_OUT_OPACITY_KEY],
     storage: !syncError ? "sync" : "local",
     syncError,
     localError,
@@ -932,38 +656,45 @@ async function saveFilterTerms() {
 }
 
 async function saveTogglePreferences() {
-   const syncPayload = {
-     autoSortComments: autoSortCommentsCheckbox.checked,
-     keywordShortcut: keywordShortcutInput.value.trim() || "Ctrl+Shift+K",
-     [GREY_OUT_OPACITY_KEY]: getGreyOutOpacityPercent(),
-   };
-   const localPayload = {
-     greyOutSeenDeals: greyOutSeenDealsCheckbox.checked,
-   };
-   const syncArea = getStorageArea("sync");
-   const localArea = getStorageArea("local");
-   let syncError = false;
+  const updatedAt = Date.now();
+  const syncPayload = {
+    autoSortComments: autoSortCommentsCheckbox.checked,
+    keywordShortcut: keywordShortcutInput.value.trim() || DEFAULT_SHORTCUT,
+    [GREY_OUT_OPACITY_KEY]: getGreyOutOpacityPercent(),
+    [SETTINGS_UPDATED_AT_KEY]: updatedAt,
+  };
+  const localPayload = {
+    ...syncPayload,
+    [GREY_OUT_SEEN_DEALS_KEY]: greyOutSeenDealsCheckbox.checked,
+  };
+  const syncArea = getStorageArea("sync");
+  const localArea = getStorageArea("local");
+  let syncError = false;
+  let localError = false;
 
-   if (syncArea) {
-     const { error } = await storageSet(syncArea, syncPayload);
-     syncError = !!error;
-     if (error) {
-       console.error("Sync storage error while saving toggle preferences:", error);
-     }
-   } else {
-     syncError = true;
-   }
+  if (syncArea) {
+    const { error } = await storageSet(syncArea, syncPayload);
+    syncError = !!error;
+    if (error) {
+      console.error("Sync storage error while saving toggle preferences:", error);
+    }
+  } else {
+    syncError = true;
+  }
 
-   if (localArea) {
-     const { error } = await storageSet(localArea, localPayload);
-     if (error) {
-       console.error("Local storage error while saving toggle preferences:", error);
-     }
-   }
+  if (localArea) {
+    const { error } = await storageSet(localArea, localPayload);
+    localError = !!error;
+    if (error) {
+      console.error("Local storage error while saving toggle preferences:", error);
+    }
+  } else {
+    localError = true;
+  }
 
-   await notifyContentScripts();
-   return { syncError };
- }
+  await notifyContentScripts();
+  return { syncError, localError };
+}
 
 async function handleExportFilters() {
   const payload = await buildExportPayload();
@@ -976,33 +707,32 @@ async function handleExportFilters() {
   }
 
   triggerJsonDownload(payload);
-  showStatus(
-    `Exported full backup (${syncKeys} sync key(s), ${localKeys} local key(s)).`
-  );
+  showStatus(`Exported full backup (${syncKeys} sync key(s), ${localKeys} local key(s)).`);
+}
+
+function buildSaveStatusSuffix({ syncError, localError, quotaExceeded }) {
+  if (syncError && localError) return " (Save failed!)";
+  if (syncError) return " Saved locally (Sync issue).";
+  if (quotaExceeded) return " (Quota warning)";
+  return "";
 }
 
 async function handleImportFilters(file) {
-  if (!file) {
-    console.warn("[mydealz Filter] No file selected for import.");
-    return;
-  }
+  if (!file) return;
 
   showStatus("Reading file...", "success");
-  console.log("[mydealz Filter] Starting import for file:", file.name, file.type, file.size);
 
-  const readFileAsText = (file) => {
-    return new Promise((resolve, reject) => {
+  const readFileAsText = (targetFile) =>
+    new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(reader.result);
       reader.onerror = () => reject(new Error("File reading failed"));
-      reader.readAsText(file);
+      reader.readAsText(targetFile);
     });
-  };
 
   let parsedPayload;
   try {
     const fileContent = await readFileAsText(file);
-    console.log("[mydealz Filter] File content read successfully. Length:", fileContent.length);
     parsedPayload = JSON.parse(fileContent);
   } catch (err) {
     console.error("[mydealz Filter] Error reading or parsing JSON:", err);
@@ -1010,10 +740,8 @@ async function handleImportFilters(file) {
     return;
   }
 
-  console.log("[mydealz Filter] Validating payload structure...");
   const validationError = validateImportPayload(parsedPayload);
   if (validationError) {
-    console.error("[mydealz Filter] Validation error:", validationError);
     showStatus(`Import failed: ${validationError}`, "error");
     return;
   }
@@ -1023,13 +751,11 @@ async function handleImportFilters(file) {
       const { syncError, localError, restoredKeyCount } = await restoreStorageBackup(parsedPayload);
       await loadFilterTerms();
       await notifyContentScripts();
-      setTimeout(() => {
-        displayHiddenDeals();
-      }, 1200);
+      await displayHiddenDeals();
 
       let suffix = "";
       if (syncError && localError) suffix = " (Sync + local restore issues)";
-      else if (syncError) suffix = " (Sync issue)";
+      else if (syncError) suffix = " (Sync issue - restored locally)";
       else if (localError) suffix = " (Local issue)";
 
       showStatus(
@@ -1056,44 +782,28 @@ async function handleImportFilters(file) {
       ? parseTerms(parsedPayload.exceptionTerms)
       : [];
 
-    console.log("[mydealz Filter] Parsed terms:", {
-      filters: importedFilterTerms.length,
-      exceptions: importedExceptionTerms.length
-    });
-
     const existingFilterTerms = parseTerms(filterTermsTextarea.value);
     const existingExceptionTerms = parseTerms(exceptionTermsTextarea.value);
 
-    console.log("[mydealz Filter] Merging with existing terms...");
     const mergedFilters = mergeUniqueTerms(existingFilterTerms, importedFilterTerms);
     const mergedExceptions = mergeUniqueTerms(existingExceptionTerms, importedExceptionTerms);
-
-    console.log("[mydealz Filter] Merge results:", {
-      filters: mergedFilters.importedCount,
-      exceptions: mergedExceptions.importedCount,
-      skipped: mergedFilters.skippedCount + mergedExceptions.skippedCount
-    });
 
     filterTermsTextarea.value = mergedFilters.merged.join(", ");
     exceptionTermsTextarea.value = mergedExceptions.merged.join(", ");
     autoGrowKeywordTextareas();
 
-    console.log("[mydealz Filter] Saving merged terms to storage...");
-    const { syncError, quotaExceeded } = await saveFilterTerms();
-    console.log("[mydealz Filter] Save completed.", { syncError, quotaExceeded });
-    
-    await notifyContentScripts();
+    const { syncError, localError, quotaExceeded } = await saveFilterTerms();
+    if (syncError && localError) {
+      showStatus("Import failed: could not write to local or sync storage.", "error");
+      return;
+    }
 
-    setTimeout(() => {
-      displayHiddenDeals();
-    }, 1200);
+    await notifyContentScripts();
+    await displayHiddenDeals();
 
     const importedTotal = mergedFilters.importedCount + mergedExceptions.importedCount;
     const skippedTotal = mergedFilters.skippedCount + mergedExceptions.skippedCount;
-    
-    let syncSuffix = "";
-    if (syncError) syncSuffix = " Saved locally (Sync issue).";
-    else if (quotaExceeded) syncSuffix = " (Quota warning)";
+    const syncSuffix = buildSaveStatusSuffix({ syncError, localError, quotaExceeded });
 
     if (importedTotal === 0) {
       showStatus(
@@ -1106,7 +816,6 @@ async function handleImportFilters(file) {
         syncError ? "error" : "success"
       );
     }
-    console.log("[mydealz Filter] Import process finished successfully.");
   } catch (err) {
     console.error("[mydealz Filter] Unexpected import logic error:", err);
     showStatus("Import failed due to an internal error.", "error");
@@ -1114,87 +823,29 @@ async function handleImportFilters(file) {
 }
 
 function showStatus(message, type = "success") {
+  clearTimeout(statusHideTimer);
   statusDiv.textContent = message;
   statusDiv.className = `status ${type}`;
 
-  setTimeout(() => {
+  statusHideTimer = setTimeout(() => {
     statusDiv.textContent = "";
     statusDiv.className = "status";
   }, 3000);
 }
 
 async function notifyContentScripts() {
-  try {
-    const tabs = await chrome.tabs.query({});
-    const mydealzDeTabs = tabs.filter((tab) => isMydealzDeUrl(tab.url));
-
-    for (const tab of mydealzDeTabs) {
-      chrome.tabs.sendMessage(tab.id, { type: "filtersChanged" }, () => {
-        if (chrome.runtime.lastError) {
-          // Ignore tabs where content script is not ready.
-        }
-      });
-    }
-  } catch {
-    // If tabs API is unavailable on this platform, settings are still saved.
-  }
+  await notifyMydealzTabs({ type: "filtersChanged" });
 }
 
 function showHiddenDealsMessage(message) {
-  hiddenCountSpan.textContent = "0";
-  noHiddenDeals.textContent = message;
-  noHiddenDeals.style.display = "block";
-  hiddenDealsList.innerHTML = "";
-  hiddenDealsList.appendChild(noHiddenDeals);
-}
-
-function renderHiddenDeals(deals) {
-  hiddenCountSpan.textContent = String(deals.length);
-  hiddenDealsList.innerHTML = "";
-
-  deals.forEach((deal) => {
-    const dealItem = document.createElement("div");
-    dealItem.className = "deal-item";
-
-    const titleElement = document.createElement("div");
-    titleElement.className = "deal-title";
-
-    if (deal.url) {
-      const link = document.createElement("a");
-      link.href = deal.url;
-      link.target = "_blank";
-      link.rel = "noopener noreferrer";
-      link.textContent = deal.title;
-      titleElement.appendChild(link);
-    } else {
-      titleElement.textContent = deal.title;
-    }
-
-    const termElement = document.createElement("div");
-    termElement.className = "deal-term";
-    termElement.textContent = `Hidden by: "${deal.matchingTerm}"`;
-
-    dealItem.appendChild(titleElement);
-    dealItem.appendChild(termElement);
-    hiddenDealsList.appendChild(dealItem);
-  });
-}
-
-function pickBestMydealzDeTab(tabs) {
-  const mydealzDeTabs = tabs.filter((tab) => isMydealzDeUrl(tab.url));
-  if (mydealzDeTabs.length === 0) return null;
-
-  const activeTab = mydealzDeTabs.find((tab) => tab.active);
-  if (activeTab) return activeTab;
-
-  return mydealzDeTabs
-    .slice()
-    .sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0))[0];
+  renderHiddenDealsList(hiddenDealsList, hiddenCountSpan, noHiddenDeals, [], message);
 }
 
 async function displayHiddenDeals() {
   if (!chrome.tabs || !chrome.tabs.query || !chrome.tabs.sendMessage) {
-    showHiddenDealsMessage("Hidden deals preview is not available on this platform.");
+    showHiddenDealsMessage(
+      getMessage("hiddenDealsUnavailable", [], "Hidden deals preview is not available on this platform.")
+    );
     return;
   }
 
@@ -1203,24 +854,29 @@ async function displayHiddenDeals() {
     const tab = pickBestMydealzDeTab(tabs);
 
     if (!tab) {
-      showHiddenDealsMessage("Open a mydealz.de tab to view hidden deals.");
+      showHiddenDealsMessage(
+        getMessage("openTabHiddenDeals", [], "Open a mydealz.de tab to view hidden deals.")
+      );
       return;
     }
 
     try {
       const response = await chrome.tabs.sendMessage(tab.id, { type: "getHiddenDeals" });
       const deals = response?.hiddenDeals || [];
-
-      if (deals.length > 0) {
-        renderHiddenDeals(deals);
-      } else {
-        showHiddenDealsMessage("No deals have been hidden on this page.");
-      }
+      renderHiddenDealsList(
+        hiddenDealsList,
+        hiddenCountSpan,
+        noHiddenDeals,
+        deals,
+        getMessage("noHiddenDeals", [], "No deals have been hidden on this page.")
+      );
     } catch {
-      showHiddenDealsMessage("No deals have been hidden on this page.");
+      showHiddenDealsMessage(
+        getMessage("noHiddenDeals", [], "No deals have been hidden on this page.")
+      );
     }
   } catch {
-    showHiddenDealsMessage("Could not load hidden deals.");
+    showHiddenDealsMessage(getMessage("hiddenDealsLoadError", [], "Could not load hidden deals."));
   }
 }
 
@@ -1230,39 +886,41 @@ saveBtn.addEventListener("click", async () => {
       filterTerms,
       exceptionTerms,
       syncError,
+      localError,
       quotaExceeded,
       filterDuplicates,
       exceptionDuplicates,
     } = await saveFilterTerms();
-    const filterTermCount = filterTerms
-      .split(",")
-      .filter((term) => term.trim().length > 0).length;
-    const exceptionTermCount = exceptionTerms
-      .split(",")
-      .filter((term) => term.trim().length > 0).length;
+
+    if (syncError && localError) {
+      showStatus("Error: Could not save to sync or local storage.", "error");
+      return;
+    }
+
+    const filterTermCount = parseTerms(filterTerms).length;
+    const exceptionTermCount = parseTerms(exceptionTerms).length;
     const duplicateTerms = [...filterDuplicates, ...exceptionDuplicates];
     const uniqueDuplicateLabels = Array.from(new Set(duplicateTerms.map((term) => term.trim())));
 
     highlightDuplicateFields(filterDuplicates, exceptionDuplicates);
-
-    let syncSuffix = "";
-    if (syncError) syncSuffix = " Saved locally (Sync issue).";
-    else if (quotaExceeded) syncSuffix = " (Quota warning)";
+    const syncSuffix = buildSaveStatusSuffix({ syncError, localError, quotaExceeded });
 
     if (uniqueDuplicateLabels.length > 0) {
-      showStatus(`Saved. Skipped duplicate terms: ${uniqueDuplicateLabels.join(", ")}${syncSuffix}`, syncError ? "error" : "success");
+      showStatus(
+        `Saved. Skipped duplicate terms: ${uniqueDuplicateLabels.join(", ")}${syncSuffix}`,
+        syncError ? "error" : "success"
+      );
     } else if (filterTermCount > 0 || exceptionTermCount > 0) {
       showStatus(
-        `Saved ${filterTermCount} filter term(s) and ${exceptionTermCount} exception term(s).${syncSuffix}`, syncError ? "error" : "success"
+        `Saved ${filterTermCount} filter term(s) and ${exceptionTermCount} exception term(s).${syncSuffix}`,
+        syncError ? "error" : "success"
       );
     } else {
       showStatus(`Filters cleared.${syncSuffix}`, syncError ? "error" : "success");
     }
 
     await notifyContentScripts();
-    setTimeout(() => {
-      displayHiddenDeals();
-    }, 1200);
+    await displayHiddenDeals();
   } catch {
     showStatus("Error while saving filters.", "error");
   }
@@ -1299,36 +957,49 @@ refreshHiddenBtn.addEventListener("click", () => {
 });
 
 resetSeenDealsBtn.addEventListener("click", async () => {
-  if (!confirm("Are you sure you want to clear your 'seen deals' history? All deals will look 'new' again.")) {
+  if (
+    !confirm(
+      getMessage(
+        "resetSeenDealsConfirm",
+        [],
+        "Are you sure you want to clear your 'seen deals' history? All deals will look 'new' again."
+      )
+    )
+  ) {
     return;
   }
 
   const localArea = getStorageArea("local");
-  if (localArea) {
-    chrome.storage.local.remove("seenDealUrls", async () => {
-      if (chrome.runtime.lastError) {
-        showStatus("Error resetting seen deals cache.", "error");
-      } else {
-        showStatus("Seen deals history cleared!", "success");
-        // Notify content scripts to clear their local cache and UI
-        const tabs = await chrome.tabs.query({});
-        const mydealzDeTabs = tabs.filter((tab) => isMydealzDeUrl(tab.url));
-        for (const tab of mydealzDeTabs) {
-          chrome.tabs.sendMessage(tab.id, { type: "seenDealsReset" });
-        }
-      }
-    });
+  if (!localArea) {
+    showStatus("Local storage unavailable.", "error");
+    return;
   }
+
+  const { error } = await storageRemove(localArea, "seenDealUrls");
+  if (error) {
+    showStatus("Error resetting seen deals cache.", "error");
+    return;
+  }
+
+  showStatus(getMessage("resetSeenDealsDone", [], "Seen deals history cleared!"), "success");
+  await notifyMydealzTabs({ type: "seenDealsReset" });
 });
 
 createCategoryBtn.addEventListener("click", async () => {
   const categoryName = normalizeCategoryName(newCategoryNameInput.value);
   if (!isValidCategoryName(categoryName)) {
-    showStatus("Category names must be 1-50 chars and use letters, numbers, spaces, or hyphens.", "error");
+    showStatus(
+      "Category names must be 1-50 chars and use letters, numbers, spaces, or hyphens.",
+      "error"
+    );
     return;
   }
 
-  if (Object.keys(currentCategoryData).some((entry) => normalizeTerm(entry) === normalizeTerm(categoryName))) {
+  if (
+    Object.keys(currentCategoryData).some(
+      (entry) => normalizeTerm(entry) === normalizeTerm(categoryName)
+    )
+  ) {
     showStatus("Category already exists.", "error");
     return;
   }
@@ -1364,7 +1035,11 @@ newCategoryNameInput.addEventListener("keydown", (event) => {
 });
 
 autoSortCommentsCheckbox.addEventListener("change", async () => {
-  const { syncError } = await saveTogglePreferences();
+  const { syncError, localError } = await saveTogglePreferences();
+  if (syncError && localError) {
+    showStatus("Error saving auto-sort preference.", "error");
+    return;
+  }
   showStatus(
     `Auto-sort comments ${autoSortCommentsCheckbox.checked ? "enabled" : "disabled"}.${
       syncError ? " Saved locally." : ""
@@ -1374,12 +1049,14 @@ autoSortCommentsCheckbox.addEventListener("change", async () => {
 });
 
 greyOutSeenDealsCheckbox.addEventListener("change", async () => {
-  const { syncError } = await saveTogglePreferences();
+  const { localError } = await saveTogglePreferences();
+  if (localError) {
+    showStatus("Error saving seen-deals preference.", "error");
+    return;
+  }
   showStatus(
-    `Grey out seen deals ${greyOutSeenDealsCheckbox.checked ? "enabled" : "disabled"}.${
-      syncError ? " Saved locally." : ""
-    }`,
-    syncError ? "error" : "success"
+    `Grey out seen deals ${greyOutSeenDealsCheckbox.checked ? "enabled" : "disabled"}.`,
+    "success"
   );
 });
 
@@ -1389,7 +1066,11 @@ if (greyOutOpacityRange) {
   });
 
   greyOutOpacityRange.addEventListener("change", async () => {
-    const { syncError } = await saveTogglePreferences();
+    const { syncError, localError } = await saveTogglePreferences();
+    if (syncError && localError) {
+      showStatus("Error saving opacity preference.", "error");
+      return;
+    }
     const percent = getGreyOutOpacityPercent();
     showStatus(
       `Grey-out opacity set to ${percent}%.${syncError ? " Saved locally." : ""}`,
@@ -1399,7 +1080,8 @@ if (greyOutOpacityRange) {
 }
 
 async function init() {
-       setupKeyboardShortcutField();
+  applyI18n();
+  setupKeyboardShortcutField();
   displayExtensionVersion();
   setupClickToEditKeywordFields();
   await loadFilterTerms();
@@ -1410,8 +1092,3 @@ async function init() {
 }
 
 init();
-
-
-
-
-
