@@ -213,8 +213,23 @@ function normalizeDealUrl(url) {
   }
 }
 
+function stripInvisibleChars(text) {
+  return (text || "").replace(/[\u200B-\u200D\u2060\uFEFF]/g, "");
+}
+
 function normalizeDealTitle(title) {
-  return (title || "").toLowerCase().replace(/\s+/g, " ").trim();
+  return stripInvisibleChars(title).toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function isValidDealKey(dealKey) {
+  if (typeof dealKey !== "string" || !dealKey) return false;
+  if (dealKey.startsWith("url:")) {
+    return dealKey.length > 4;
+  }
+  if (dealKey.startsWith("title:")) {
+    return isValidPrimaryTitleText(dealKey.slice(6));
+  }
+  return stripInvisibleChars(dealKey).trim().length >= 2;
 }
 
 function normalizeOpacityPercent(value) {
@@ -279,8 +294,8 @@ function getActiveFilterTermsFromCategories(filterTerms, rawCategories, rawState
 
 function cleanupExpiredSeenDeals(rawSeenDealUrls) {
   const now = Date.now();
-  const entries = Object.entries(rawSeenDealUrls || {}).filter(([, timestamp]) => {
-    return Number.isInteger(timestamp) && now - timestamp < SEEN_DEAL_EXPIRY_MS;
+  const entries = Object.entries(rawSeenDealUrls || {}).filter(([key, timestamp]) => {
+    return isValidDealKey(key) && Number.isInteger(timestamp) && now - timestamp < SEEN_DEAL_EXPIRY_MS;
   });
   entries.sort((a, b) => b[1] - a[1]);
   const trimmedEntries = entries.slice(0, MAX_SEEN_DEAL_ENTRIES);
@@ -414,7 +429,7 @@ async function loadSeenDealUrls(forceReload = false) {
 }
 
 function trackSeenDeal(dealKey) {
-  if (!dealKey) return { wasSeenBefore: false, seenAt: null, changed: false };
+  if (!isValidDealKey(dealKey)) return { wasSeenBefore: false, seenAt: null, changed: false };
 
   const existingTimestamp = seenDealUrls[dealKey];
   if (Number.isInteger(existingTimestamp)) {
@@ -925,18 +940,58 @@ function matchesFilter(title, filterTerms, exceptionTerms) {
 function safeGetText(element) {
   if (!element) return "";
   try {
-    return element.textContent.trim();
+    return stripInvisibleChars(element.textContent).replace(/\s+/g, " ").trim();
   } catch {
     return "";
   }
 }
 
 function isValidPrimaryTitleText(text) {
-  const normalized = (text || "").trim();
+  const normalized = stripInvisibleChars(text).replace(/\s+/g, " ").trim();
   if (normalized.length < 2) return false;
+  if (!/[\p{L}\p{N}]/u.test(normalized)) return false;
   if (/^-?\d+[°%]$/.test(normalized)) return false;
   if (/^-?\d+(?:[.,]\d+)?\s*€?$/i.test(normalized)) return false;
   return true;
+}
+
+function extractVue3ThreadData(container) {
+  if (!container || typeof container.querySelectorAll !== "function") return null;
+  const vueNodes = container.querySelectorAll("[data-vue3]");
+  for (const node of vueNodes) {
+    const raw = node.getAttribute("data-vue3");
+    if (!raw || !raw.includes("ThreadMainListItemNormalizer")) continue;
+    try {
+      const parsed = JSON.parse(raw);
+      const thread = parsed?.props?.thread;
+      if (thread && typeof thread === "object" && typeof thread.title === "string") {
+        return thread;
+      }
+    } catch {
+      // Ignore malformed JSON payloads and fall back to DOM selectors.
+    }
+  }
+  return null;
+}
+
+function extractDealUrl(container) {
+  if (!container || typeof container.querySelector !== "function") return "";
+  const link = container.querySelector(
+    'a[href*="/deals/"], a[href*="/gutscheine/"], a[href*="/diskussion/"]'
+  );
+  if (link?.href) return link.href;
+
+  const thread = extractVue3ThreadData(container);
+  if (thread?.threadId && thread?.titleSlug) {
+    if (thread.type === "Deal") {
+      return `https://www.mydealz.de/deals/${thread.titleSlug}-${thread.threadId}`;
+    }
+    if (thread.type === "Discussion") {
+      return `https://www.mydealz.de/diskussion/${thread.titleSlug}-${thread.threadId}`;
+    }
+  }
+
+  return "";
 }
 
 /**
@@ -964,6 +1019,19 @@ function findTitleInElement(container) {
       const text = safeGetText(element);
       if (isValidPrimaryTitleText(text)) return text;
     }
+  }
+
+  // Unhydrated Vue3 cards on mydealz render skeleton placeholders inside .thread-title
+  // while carrying the authoritative title in ThreadMainListItemNormalizer's data-vue3 payload.
+  const vueThread = extractVue3ThreadData(container);
+  if (vueThread?.title) {
+    const vueTitle = stripInvisibleChars(vueThread.title).replace(/\s+/g, " ").trim();
+    if (isValidPrimaryTitleText(vueTitle)) return vueTitle;
+  }
+
+  // Never fall back onto card descriptions while a card's title is still an unhydrated skeleton.
+  if (container.querySelector(".thread-title .skeleton")) {
+    return "";
   }
 
   const dealLink = container.querySelector("a[href*='/deals/'], a[href*='/gutscheine/']");
@@ -1017,9 +1085,23 @@ function findTitleInElement(container) {
 
 function isExcludedDealCandidate(element) {
   if (!element || element.nodeType !== Node.ELEMENT_NODE) return true;
+  const tagName = (element.tagName || "").toUpperCase();
   if (
+    tagName === "HTML" ||
+    tagName === "BODY" ||
+    tagName === "MAIN" ||
+    tagName === "HEADER" ||
+    tagName === "NAV" ||
+    tagName === "FOOTER"
+  ) {
+    return true;
+  }
+  if (
+    element.id === "main" ||
     element.id === "thread-inject" ||
     element.id === "mydealz-filter-all-hidden-notice" ||
+    element.classList.contains("js-threadList") ||
+    element.classList.contains("listLayout-main") ||
     element.classList.contains(PAGE_SEPARATOR_CLASS) ||
     element.getAttribute("data-mydealz-filter-ui") === "true"
   ) {
@@ -1036,6 +1118,15 @@ function extractPrimaryDealElements(nodes) {
       if (!node.hasAttribute("data-mydealz-processed")) {
         unique.add(node);
       }
+      continue;
+    }
+    const ancestorDeal = node.closest?.(PRIMARY_DEAL_SELECTOR_UNION);
+    if (
+      ancestorDeal &&
+      !isExcludedDealCandidate(ancestorDeal) &&
+      !ancestorDeal.hasAttribute("data-mydealz-processed")
+    ) {
+      unique.add(ancestorDeal);
       continue;
     }
     const nested = node.querySelectorAll(PRIMARY_DEAL_SELECTOR_UNION);
@@ -1210,10 +1301,10 @@ function applyFilterToPostings(postings, context) {
   let hiddenInBatchCount = 0;
 
   postings.forEach(({ element, title }) => {
-    const dealUrl = element.querySelector('a[href*="/deals/"]')?.href || "";
+    const dealUrl = extractDealUrl(element);
     const dealKey = buildDealUniqueKey(title, dealUrl);
 
-    if (context.visualSeenFeaturesEnabled) {
+    if (context.visualSeenFeaturesEnabled && isValidDealKey(dealKey)) {
       const seenAt = seenDealUrls[dealKey];
       applySeenDealStateToElement(
         element,
@@ -1735,7 +1826,15 @@ function observeChanges() {
       if (mutation.type !== "childList") continue;
 
       for (const node of mutation.addedNodes) {
-        if (node.nodeType !== Node.ELEMENT_NODE) continue;
+        if (node.nodeType !== Node.ELEMENT_NODE) {
+          if (mutation.target?.nodeType === Node.ELEMENT_NODE) {
+            const parentDeal = mutation.target.closest?.(PRIMARY_DEAL_SELECTOR_UNION);
+            if (parentDeal && !parentDeal.hasAttribute("data-mydealz-processed")) {
+              addedNodes.push(parentDeal);
+            }
+          }
+          continue;
+        }
         if (
           node.getAttribute("data-mydealz-filter-ui") === "true" ||
           node.id === "mydealz-filter-all-hidden-notice"
@@ -1818,7 +1917,7 @@ function observeChanges() {
       invalidateMydealzLayoutCache();
     }
 
-    if (synchronousNewHidden > 0) {
+    if (synchronousNewHidden > 0 || hiddenDeals.length !== hiddenCount) {
       hiddenCount = hiddenDeals.length;
       updateBadge(hiddenCount, synchronousNewHidden);
     }

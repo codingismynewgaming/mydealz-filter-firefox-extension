@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented in this file.
 
+## 1.1.1 - 2026-11-21
+
+### Fixed
+- **Vue 3 skeleton card filtering & scroll counting**: Fixed unhydrated mydealz deal cards (cards 4+ on page 1 and all infinite-scroll pages) whose `.thread-title` skeleton contained zero-width spaces (`\u200b\u200b`) from being marked as processed before hydration. Titles and canonical URLs are now extracted reliably from mydealz's `ThreadMainListItemNormalizer` `data-vue3` payload, with in-place hydration fallback.
+- **Mass grey-out on page load**: Prevented invalid zero-width keys (`title:\u200b\u200b`) from matching or being saved in `seenDealUrls`, and added automatic cleanup of already poisoned entries from `chrome.storage.local`.
+- **Immediate badge updates on scroll**: Updated the toolbar badge immediately whenever session hidden counts change during infinite scroll, even for deals already tracked in persistent `totalHiddenDealKeys`.
+
 ## 1.1.0 - 2026-11-15
 
 ### Added

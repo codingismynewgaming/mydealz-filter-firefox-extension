@@ -264,6 +264,7 @@ const standardHtml = fs.readFileSync(path.join(__dirname, "fixtures/deal-card-st
 const shortTitleHtml = fs.readFileSync(path.join(__dirname, "fixtures/deal-card-short-title.html"), "utf8");
 const voucherHtml = fs.readFileSync(path.join(__dirname, "fixtures/deal-card-voucher.html"), "utf8");
 const commentSortHtml = fs.readFileSync(path.join(__dirname, "fixtures/comment-sort-select.html"), "utf8");
+const vue3SkeletonHtml = fs.readFileSync(path.join(__dirname, "fixtures/deal-card-vue3-skeleton.html"), "utf8");
 
 {
   const { sandbox } = createContentScriptSandbox(
@@ -303,6 +304,58 @@ const commentSortHtml = fs.readFileSync(path.join(__dirname, "fixtures/comment-s
     Array.from(activeOnly, (entry) => entry.raw),
     ["VPN", "Saturn"]
   );
+}
+
+// 8b. Vue3 skeleton cards, zero-width space titles, seenDealUrls self-healing, and in-place hydration
+{
+  const { sandbox, body } = createContentScriptSandbox(vue3SkeletonHtml);
+
+  // Zero-width space placeholders must never pass as valid titles
+  assert.equal(sandbox.isValidPrimaryTitleText("\u200b\u200b"), false);
+  assert.equal(sandbox.isValidPrimaryTitleText(" \u200b\u200c\ufeff "), false);
+
+  // Poisoned seenDealUrls entries like "title:\u200b\u200b" must be purged automatically
+  const now = Date.now();
+  const cleanedSeen = sandbox.cleanupExpiredSeenDeals({
+    "title:\u200b\u200b": now - 1000,
+    "title:   ": now - 1000,
+    "url:https://www.mydealz.de/deals/valid-123": now - 1000,
+  });
+  assert.deepEqual(Object.keys(cleanedSeen), ["url:https://www.mydealz.de/deals/valid-123"]);
+
+  // Card 1 has data-vue3 ThreadMainListItemNormalizer -> real title extracted immediately despite skeleton
+  // Card 2 has only skeleton + description -> must NOT be processed or grab description text
+  const postings = sandbox.findDealPostings();
+  assert.equal(postings.length, 1);
+  assert.equal(postings[0].title, "Garmin Fenix 8, 47 mm, GPS-Multisport-Smartwatch");
+
+  const card1 = body.querySelector("#thread_2877981");
+  const card2 = body.querySelector("#thread_2877999");
+  assert.equal(card1.getAttribute("data-mydealz-processed"), "true");
+  assert.equal(card2.hasAttribute("data-mydealz-processed"), false);
+
+  // Canonical URL extracted from data-vue3 matches hydrated mydealz URL format
+  assert.equal(
+    sandbox.extractDealUrl(card1),
+    "https://www.mydealz.de/deals/garmin-fenix-8-smartwatch-2877981"
+  );
+
+  // When Card 2 later hydrates in-place inside its <article>, extractPrimaryDealElements must detect it
+  const strong2 = card2.querySelector(".thread-title");
+  const hydratedLink = sandbox.document.createElement("a");
+  hydratedLink.setAttribute("class", "cept-tt thread-link");
+  hydratedLink.setAttribute("href", "https://www.mydealz.de/deals/nintendo-switch-2877999");
+  hydratedLink.textContent = "Nintendo Switch OLED Bundle";
+  strong2.textContent = "";
+  strong2.appendChild(hydratedLink);
+
+  const newlyHydrated = sandbox.extractPrimaryDealElements([hydratedLink]);
+  assert.equal(newlyHydrated.length, 1);
+  assert.equal(newlyHydrated[0], card2);
+
+  const hydratedPostings = sandbox.findDealPostings(newlyHydrated);
+  assert.equal(hydratedPostings.length, 1);
+  assert.equal(hydratedPostings[0].title, "Nintendo Switch OLED Bundle");
 }
 
 {
